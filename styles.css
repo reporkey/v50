@@ -215,9 +215,7 @@ input:focus {
 }
 
 .button-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  display: block;
 }
 
 .btn {
@@ -243,16 +241,8 @@ input:focus {
   box-shadow: 0 3px 0 var(--red-dark);
 }
 
-.secondary {
-  border: 2px solid #2d211b;
-  background: var(--yellow);
-  color: #2a1c10;
-  box-shadow: 0 8px 0 rgba(34, 23, 19, 0.18);
-}
-
-.secondary:active {
-  transform: translateY(5px);
-  box-shadow: 0 3px 0 rgba(34, 23, 19, 0.18);
+.button-row .btn {
+  width: 100%;
 }
 
 .result-wrap {
@@ -415,7 +405,4 @@ input:focus {
     font-size: 21px;
   }
 
-  .button-row {
-    grid-template-columns: 1fr;
-  }
 }

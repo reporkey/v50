@@ -8,7 +8,6 @@ const historyListEl = document.getElementById('historyList');
 const copyFeedbackEl = document.getElementById('copyFeedback');
 
 const generateBtn = document.getElementById('generateBtn');
-const refreshBtn = document.getElementById('refreshBtn');
 const copyBtn = document.getElementById('copyBtn');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
@@ -122,6 +121,7 @@ async function handleGenerate() {
   const style = selectedStyle;
   const text = await generateCopy({ keywords, style });
   resultTextEl.textContent = text;
+  generateBtn.textContent = '再来一条';
   addToHistory(text);
 }
 
@@ -156,7 +156,6 @@ function handleStyleSelect(event) {
 }
 
 generateBtn.addEventListener('click', handleGenerate);
-refreshBtn.addEventListener('click', handleGenerate);
 copyBtn.addEventListener('click', copyCurrentResult);
 clearHistoryBtn.addEventListener('click', clearHistory);
 styleOptionsEl.addEventListener('click', handleStyleSelect);
