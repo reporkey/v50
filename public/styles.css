@@ -91,22 +91,11 @@ button {
   margin-bottom: 20px;
 }
 
-.eyebrow,
 .section-kicker {
   margin: 0;
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
-}
-
-.eyebrow {
-  display: inline-flex;
-  margin-bottom: 8px;
-  padding: 5px 8px;
-  border: 1px solid #f0c076;
-  border-radius: 6px;
-  background: #fff4d9;
-  color: #7a3d11;
 }
 
 h1,

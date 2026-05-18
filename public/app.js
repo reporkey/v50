@@ -29,20 +29,30 @@ const styleTemplates = {
     '本月KPI追着我跑，{kw}又临时加码。V我50，让打工人续一条命。',
     '我不是在搬砖，我是在为{kw}打补丁。V我50，下午会我就敢第一个发言。'
   ],
-  深情: [
-    '{kw}像夜里一盏小灯，我越想越温柔。若你也懂，V我50，让我把想念嚼得酥脆。',
-    '世间喧哗，我只把{kw}写进心里。V我50，借一份热度给这点认真。',
-    '今天风很轻，刚好适合想你，也适合想{kw}。V我50，让浪漫有一点盐和胡椒。'
+  恋爱脑: [
+    '今天本来想聊{kw}，结果越聊越想你。V我50，我去买点东西冷静一下。',
+    '你说{kw}不重要，可我连标点都想解读。V我50，恋爱脑今天需要维修费。',
+    '我把{kw}看了三遍，还是没看懂你到底喜不喜欢我。V我50，我去求个答案。'
   ],
-  朋友圈: [
+  学生党: [
+    '早八点名，{kw}还没写完，老师说年轻人要有朝气。V我50，我买杯豆浆假装有。',
+    '宿舍灯一关，我和{kw}同时沉默。V我50，今晚的论文靠一口热量续命。',
+    '绩点不爱我，{kw}也不放过我。V我50，我去食堂窗口买点尊严。'
+  ],
+  时事热梗: [
+    '群里刚传{kw}，我认真分析了三分钟，结论是信息量太大。V我50，我去买杯饮料压压惊。',
+    '关于{kw}，本人目前没有内部消息，只有一个外部需求：V我50。',
+    '别问{kw}是真是假，问就是群聊观察员需要经费。V我50，我继续帮大家盯盘。'
+  ],
+  玄学求助: [
+    '刚给{kw}抽了一签，签上写着四个字：先V我50。',
+    '大师说{kw}最近缺一点火候。V我50，我去红色圣地替你补补运。',
+    '水逆、犯困、{kw}不顺，统称能量不足。V我50，我现场做法恢复。'
+  ],
+  群聊日常: [
     '今日份精神状态：被{kw}拿捏，但还能笑着说“问题不大”。V我50，速来点赞续命。',
     '朋友们，{kw}这事我先冲了。V我50，评论区见证我从嘴硬到真香。',
     '打卡第N天：和{kw}斗智斗勇。V我50，这条朋友圈就当我的电子饭票。'
-  ],
-  荒诞: [
-    '我与{kw}签了和平条约，条款第一条：先V我50，再讨论宇宙边界。',
-    '凌晨三点，{kw}骑着电动车闯进梦里，说要我立刻V它50。',
-    '据不可靠消息，{kw}已被列入快乐补给名单。V我50，我去现场核实。'
   ],
   通用: [
     '周四了，灵魂在排队等脆皮。V我50，让我把这一口快乐写成史诗。',
@@ -57,7 +67,7 @@ function pickRandom(items) {
 
 function resolveStyle(style) {
   if (style === '随机') {
-    const candidates = ['发疯文学', '打工人', '深情', '朋友圈', '荒诞'];
+    const candidates = ['发疯文学', '打工人', '恋爱脑', '学生党', '时事热梗', '玄学求助', '群聊日常'];
     return pickRandom(candidates);
   }
   return style;
@@ -172,7 +182,8 @@ async function handleGenerate() {
     addToHistory(text);
   } catch (error) {
     currentCopyText = '';
-    resultTextEl.textContent = error.message || API_ERROR_MESSAGE;
+    const message = error?.message === RATE_LIMIT_MESSAGE ? RATE_LIMIT_MESSAGE : API_ERROR_MESSAGE;
+    resultTextEl.textContent = message;
   } finally {
     isGenerating = false;
     generateBtn.disabled = false;
