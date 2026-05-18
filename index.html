@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>V我50 文案机</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="card generator-card">
+        <p class="badge">当前为前端原型，暂未连接 AI。</p>
+        <h1>V我50 文案机</h1>
+
+        <div class="controls">
+          <label for="keywords">关键词（可选）</label>
+          <input id="keywords" type="text" placeholder="例如：加班、ddl、恋爱脑" maxlength="20" />
+
+          <label for="style">风格</label>
+          <select id="style">
+            <option value="随机">随机</option>
+            <option value="发疯文学">发疯文学</option>
+            <option value="打工人">打工人</option>
+            <option value="深情">深情</option>
+            <option value="朋友圈">朋友圈</option>
+            <option value="荒诞">荒诞</option>
+          </select>
+
+          <div class="button-row">
+            <button id="generateBtn" class="btn primary">生成文案</button>
+            <button id="refreshBtn" class="btn secondary">再来一条</button>
+          </div>
+        </div>
+
+        <section class="result-wrap">
+          <div class="result-head">
+            <h2>当前文案</h2>
+            <button id="copyBtn" class="text-btn">复制</button>
+          </div>
+          <p id="resultText" class="result-text">点击“生成文案”，领取你今天的 V50 文学。</p>
+          <p id="copyFeedback" class="copy-feedback" aria-live="polite"></p>
+        </section>
+      </section>
+
+      <section class="card history-card">
+        <div class="history-head">
+          <h2>最近 5 条</h2>
+          <button id="clearHistoryBtn" class="text-btn subtle">清空</button>
+        </div>
+        <ul id="historyList" class="history-list">
+          <li class="empty">暂无历史，先生成一条试试。</li>
+        </ul>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
