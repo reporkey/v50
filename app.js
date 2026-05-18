@@ -2,7 +2,7 @@ const HISTORY_KEY = 'v50-copy-history';
 const MAX_HISTORY = 5;
 
 const keywordsEl = document.getElementById('keywords');
-const styleEl = document.getElementById('style');
+const styleOptionsEl = document.getElementById('styleOptions');
 const resultTextEl = document.getElementById('resultText');
 const historyListEl = document.getElementById('historyList');
 const copyFeedbackEl = document.getElementById('copyFeedback');
@@ -11,6 +11,8 @@ const generateBtn = document.getElementById('generateBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const copyBtn = document.getElementById('copyBtn');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+
+let selectedStyle = '随机';
 
 const styleTemplates = {
   发疯文学: [
@@ -117,7 +119,7 @@ function addToHistory(copyText) {
 
 async function handleGenerate() {
   const keywords = keywordsEl.value;
-  const style = styleEl.value;
+  const style = selectedStyle;
   const text = await generateCopy({ keywords, style });
   resultTextEl.textContent = text;
   addToHistory(text);
@@ -143,9 +145,20 @@ function clearHistory() {
   renderHistory([]);
 }
 
+function handleStyleSelect(event) {
+  const button = event.target.closest('.style-chip');
+  if (!button) return;
+
+  selectedStyle = button.dataset.style;
+  styleOptionsEl.querySelectorAll('.style-chip').forEach((chip) => {
+    chip.classList.toggle('active', chip === button);
+  });
+}
+
 generateBtn.addEventListener('click', handleGenerate);
 refreshBtn.addEventListener('click', handleGenerate);
 copyBtn.addEventListener('click', copyCurrentResult);
 clearHistoryBtn.addEventListener('click', clearHistory);
+styleOptionsEl.addEventListener('click', handleStyleSelect);
 
 renderHistory(loadHistory());
