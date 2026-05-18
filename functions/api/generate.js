@@ -3,6 +3,19 @@ const MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
 const KEYWORD_LIMIT = 40;
 const MINUTE_LIMIT = 6;
 const DAILY_LIMIT = 30;
+const STYLE_GUIDES = {
+  发疯文学: '情绪过山车、夸张自嘲、像在群里突然崩溃又突然快乐，句子可以短促但不要乱码。',
+  打工人: '办公室、加班、会议、KPI、工位、老板、周报等打工人语境，语气疲惫但嘴硬好笑。',
+  深情: '先像失恋、告白、回忆或人生感悟，语气认真温柔，最后忽然露出真实目的。',
+  朋友圈: '像一条真实朋友圈/群聊动态，有日常细节、轻微自嘲和求互动感，别像广告。',
+  荒诞: '伪科学、怪通知、离谱设定、宇宙级因果或一本正经的胡说，逻辑可以跳但要读得懂。'
+};
+const OPENING_ANGLES = [
+  '伪装成正式通知、温馨提醒、活动公告、招聘/接单信息、技术求助、人生建议、情感倾诉、科普研究、朋友圈近况中的一种。',
+  '先让读者以为主题是工作、恋爱、天气、学习、游戏、健康、生活危机或玄学事件。',
+  '中段加入 2-4 个具体细节，让铺垫看起来像真的。',
+  '最后 1 句突然反转到“今天疯狂星期四 / V我50 / 请我吃点好的”，形成群聊包袱。'
+];
 
 export async function onRequest(context) {
   if (context.request.method === 'OPTIONS') {
@@ -41,15 +54,15 @@ async function handleGenerate(context) {
         {
           role: 'system',
           content:
-            '你是一个中文互联网短文案助手。/no_think。只输出一条文案，不要解释，不要 Markdown，不要列表，不要标题。'
+            '你是一个中文互联网梗文案助手，擅长“疯狂星期四 / V50”小作文。/no_think。只输出一条文案正文，不要解释，不要 Markdown，不要列表，不要标题。'
         },
         {
           role: 'user',
           content: prompt
         }
       ],
-      max_tokens: 360,
-      temperature: 0.9,
+      max_tokens: 460,
+      temperature: 0.95,
       chat_template_kwargs: {
         enable_thinking: false
       }
@@ -136,14 +149,19 @@ function resolveStyle(style) {
 }
 
 function buildPrompt({ keywords, style }) {
-  const topic = keywords || '周四、快乐、想吃点好的';
+  const topic = keywords || '疯狂星期四、V50、打工人、快乐补给';
+  const styleGuide = STYLE_GUIDES[style] || STYLE_GUIDES.朋友圈;
   return [
     '/no_think',
-    '请写一条中文“V50 / 疯狂星期四”风格短文案。',
+    '请写一条中文“疯狂星期四 / V50”梗文案。它应该像群聊里会被转发的小作文，不像广告语。',
     `风格：${style}`,
+    `风格执行：${styleGuide}`,
     `关键词：${topic}`,
-    '要求：40-100 个中文字符左右，自然、好笑、有网感。',
-    '禁止：自称官方账号；使用官方品牌口吻；提供真实转账方式、二维码、账号、支付指令；仇恨、骚扰、露骨内容。',
+    '结构参考：',
+    ...OPENING_ANGLES.map((angle) => `- ${angle}`),
+    '要求：80-180 个中文字符左右；必须自然包含关键词或其语义；要有铺垫、转折、最后的包袱；结尾必须出现“疯狂星期四”或“V我50”之一，最好两者都有。',
+    '避免：开头就暴露 V50；写成优惠广告；写成模板填空；过度堆叠感叹号；使用官方品牌身份或官方口吻。',
+    '禁止：提供真实转账方式、二维码、账号、支付步骤；仇恨、骚扰、露骨内容。',
     '只输出文案正文。'
   ].join('\n');
 }
@@ -154,7 +172,7 @@ function extractText(aiResponse) {
   const reasoningFallback =
     choice?.finish_reason === 'stop' &&
     typeof message?.reasoning_content === 'string' &&
-    message.reasoning_content.length <= 220
+    message.reasoning_content.length <= 360
       ? message.reasoning_content
       : '';
   const raw = aiResponse?.response || aiResponse?.result?.response || message?.content || choice?.text || reasoningFallback;
@@ -165,7 +183,7 @@ function extractText(aiResponse) {
     .replace(/^文案[:：]\s*/, '')
     .replace(/^["“”]+|["“”]+$/g, '')
     .trim()
-    .slice(0, 220);
+    .slice(0, 360);
 
   if (looksLikeReasoning(text)) {
     return '';
