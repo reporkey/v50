@@ -8,5 +8,5 @@ remote = true
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
-id = "00000000000000000000000000000000"
-preview_id = "00000000000000000000000000000000"
+id = "401f3985b7fb47358297af1d698594be"
+preview_id = "ad0f66c30024488b84e52bd4d1e51f61"
