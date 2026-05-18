@@ -1,0 +1,13 @@
+{
+  "name": "v50-copywriter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler pages dev public --ai AI --kv RATE_LIMIT",
+    "check": "node --check public/app.js && node --check functions/api/generate.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.92.0"
+  }
+}

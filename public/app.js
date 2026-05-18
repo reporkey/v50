@@ -1,5 +1,7 @@
 const HISTORY_KEY = 'v50-copy-history';
 const MAX_HISTORY = 5;
+const API_ERROR_MESSAGE = '生成失败，请稍后再试';
+const RATE_LIMIT_MESSAGE = '请求太频繁，请稍后再试';
 
 const keywordsEl = document.getElementById('keywords');
 const styleOptionsEl = document.getElementById('styleOptions');
@@ -12,6 +14,9 @@ const copyBtn = document.getElementById('copyBtn');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
 let selectedStyle = '随机';
+let hasGenerated = false;
+let isGenerating = false;
+let currentCopyText = '';
 
 const styleTemplates = {
   发疯文学: [
@@ -73,7 +78,39 @@ function mockGenerateCopy({ keywords, style }) {
 }
 
 async function generateCopy({ keywords, style }) {
-  return mockGenerateCopy({ keywords, style });
+  if (shouldUseMockGenerator()) {
+    return mockGenerateCopy({ keywords, style });
+  }
+
+  const response = await fetch('/api/generate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      keywords: keywords.trim(),
+      style
+    })
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok || !payload?.ok || typeof payload.text !== 'string' || !payload.text.trim()) {
+    const message = response.status === 429 ? payload?.error || RATE_LIMIT_MESSAGE : API_ERROR_MESSAGE;
+    throw new Error(message);
+  }
+
+  return payload.text.trim();
+}
+
+function shouldUseMockGenerator() {
+  const params = new URLSearchParams(window.location.search);
+  return window.location.protocol === 'file:' || params.get('mock') === '1';
 }
 
 function loadHistory() {
@@ -117,16 +154,34 @@ function addToHistory(copyText) {
 }
 
 async function handleGenerate() {
+  if (isGenerating) return;
+
   const keywords = keywordsEl.value;
   const style = selectedStyle;
-  const text = await generateCopy({ keywords, style });
-  resultTextEl.textContent = text;
-  generateBtn.textContent = '再来一条';
-  addToHistory(text);
+
+  isGenerating = true;
+  generateBtn.disabled = true;
+  generateBtn.textContent = '生成中...';
+  copyFeedbackEl.textContent = '';
+
+  try {
+    const text = await generateCopy({ keywords, style });
+    resultTextEl.textContent = text;
+    currentCopyText = text;
+    hasGenerated = true;
+    addToHistory(text);
+  } catch (error) {
+    currentCopyText = '';
+    resultTextEl.textContent = error.message || API_ERROR_MESSAGE;
+  } finally {
+    isGenerating = false;
+    generateBtn.disabled = false;
+    generateBtn.textContent = hasGenerated ? '再来一条' : '生成文案';
+  }
 }
 
 async function copyCurrentResult() {
-  const text = resultTextEl.textContent.trim();
+  const text = currentCopyText.trim();
   if (!text) return;
 
   try {

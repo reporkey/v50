@@ -230,6 +230,11 @@ input:focus {
   transform: translateY(-1px);
 }
 
+.btn:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .primary {
   background: var(--red);
   color: #fff;

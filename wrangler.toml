@@ -1,0 +1,12 @@
+name = "v50"
+compatibility_date = "2026-05-18"
+pages_build_output_dir = "public"
+
+[ai]
+binding = "AI"
+remote = true
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "00000000000000000000000000000000"
+preview_id = "00000000000000000000000000000000"
