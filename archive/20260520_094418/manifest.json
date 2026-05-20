@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "archive_id": "20260520_094418",
+  "archived_at": "2026-05-20T09:44:21+08:00",
+  "archive_dir": "archive/20260520_094418",
+  "reason": "Freeze generated V50 prompt/corpus artifacts before rebuilding local source snapshots.",
+  "patterns": [
+    "references/v50_reference_corpus*",
+    "references/v50_references.*",
+    "references/v50_corpus_findings.md",
+    "prompts/kimi_v50_prompts.md",
+    "scripts/build_v50_references.py"
+  ],
+  "git_status_short": "D CODEX_WEB_TASK.md\n?? prompts/\n?? references/\n?? samples/\n?? scripts/",
+  "files": [
+    {
+      "original_path": "prompts/kimi_v50_prompts.md",
+      "archive_path": "archive/20260520_094418/prompts/kimi_v50_prompts.md",
+      "size_bytes": 8898,
+      "sha256": "2956a9ca9187701326afa43d6caf116529045ddf66758d366dd878c3fa3a26df"
+    },
+    {
+      "original_path": "references/v50_corpus_findings.md",
+      "archive_path": "archive/20260520_094418/references/v50_corpus_findings.md",
+      "size_bytes": 7585,
+      "sha256": "9e5622d73880c1e142a5d7c1309a2ab231aca64a8f6ab993b7388dae2911cd94"
+    },
+    {
+      "original_path": "references/v50_reference_corpus.json",
+      "archive_path": "archive/20260520_094418/references/v50_reference_corpus.json",
+      "size_bytes": 2186865,
+      "sha256": "e48190e9c494fdd1f3daafcc220898586edf1cf040c8293bf01a258c6ca21fd7"
+    },
+    {
+      "original_path": "references/v50_reference_corpus.md",
+      "archive_path": "archive/20260520_094418/references/v50_reference_corpus.md",
+      "size_bytes": 1692017,
+      "sha256": "f3f2c080f2f649ce3a0f005b5d8907f247ead5246ea2b6acb1c8a78a85043339"
+    },
+    {
+      "original_path": "references/v50_reference_corpus_focused.json",
+      "archive_path": "archive/20260520_094418/references/v50_reference_corpus_focused.json",
+      "size_bytes": 1727408,
+      "sha256": "035d3787df5eb5191943e6bc47d8d4474023ca9375677880c7cc4113e5b97853"
+    },
+    {
+      "original_path": "references/v50_reference_corpus_focused.md",
+      "archive_path": "archive/20260520_094418/references/v50_reference_corpus_focused.md",
+      "size_bytes": 1340919,
+      "sha256": "583e82c358320b1f5fa33441c4b7377ae5f713af92307ad49e6691de36aa5e9f"
+    },
+    {
+      "original_path": "references/v50_references.audit.json",
+      "archive_path": "archive/20260520_094418/references/v50_references.audit.json",
+      "size_bytes": 546795,
+      "sha256": "95b9f7055d644bbaf72b1a91763979825b26638efbaf706096e3560fb78c7255"
+    },
+    {
+      "original_path": "references/v50_references.canonical.json",
+      "archive_path": "archive/20260520_094418/references/v50_references.canonical.json",
+      "size_bytes": 1706222,
+      "sha256": "9ec4bc6beac36f47786a547b4068265b1a91b658387e674e0638ae08d17fb02b"
+    },
+    {
+      "original_path": "references/v50_references.rejected.json",
+      "archive_path": "archive/20260520_094418/references/v50_references.rejected.json",
+      "size_bytes": 3239464,
+      "sha256": "e4789acbfb42189562ea7f7247571d628ad3e95051e9f3381c54ef34a5f90108"
+    },
+    {
+      "original_path": "scripts/build_v50_references.py",
+      "archive_path": "archive/20260520_094418/scripts/build_v50_references.py",
+      "size_bytes": 29491,
+      "sha256": "a750c5d4d4dc204ab659cd968b88ede26a3cd07f5a854eea11e273f43bc590f1"
+    }
+  ],
+  "missing_patterns": [],
+  "dry_run": false,
+  "file_count": 10
+}
