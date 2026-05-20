@@ -1,9 +1,9 @@
-const DEFAULT_CHAT_MODEL = '@cf/moonshotai/kimi-k2.6';
+const DEFAULT_CHAT_MODEL = '@cf/moonshotai/kimi-k2.5';
 const EMBEDDING_MODEL = '@cf/baai/bge-m3';
 const DEFAULT_QUERY = '周四 V50 疯狂星期四 群聊';
 const KEYWORD_LIMIT = 40;
 const MINUTE_LIMIT = 10;
-const DAILY_LIMIT = 100;
+const DAILY_LIMIT = 20;
 const REFERENCE_LIMIT = 6;
 const MIN_REFERENCE_LIMIT = 4;
 
