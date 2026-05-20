@@ -14,7 +14,9 @@ const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
 let hasGenerated = false;
 let isGenerating = false;
+let isCopying = false;
 let currentCopyText = '';
+let currentCopyId = '';
 let lastKeywords = '';
 let attemptNo = 0;
 let previousOutputs = [];
@@ -158,6 +160,7 @@ async function handleGenerate() {
     const text = payload.text;
     resultTextEl.textContent = text;
     currentCopyText = text;
+    currentCopyId = crypto.randomUUID();
     hasGenerated = true;
     lastKeywords = keywords;
     attemptNo = payload.attempt_no;
@@ -167,6 +170,7 @@ async function handleGenerate() {
     addToHistory(text);
   } catch (error) {
     currentCopyText = '';
+    currentCopyId = '';
     currentReferenceIds = [];
     const message = error?.message === RATE_LIMIT_MESSAGE ? RATE_LIMIT_MESSAGE : API_ERROR_MESSAGE;
     resultTextEl.textContent = message;
@@ -178,18 +182,25 @@ async function handleGenerate() {
 }
 
 async function copyCurrentResult() {
+  if (isCopying) return;
   const text = currentCopyText.trim();
   if (!text) return;
 
+  isCopying = true;
+  copyBtn.disabled = true;
+
   try {
     await navigator.clipboard.writeText(text);
-    saveCopiedOutput(text);
     copyFeedbackEl.textContent = '已复制';
     setTimeout(() => {
       copyFeedbackEl.textContent = '';
     }, 1400);
+    await saveCopiedOutput(text);
   } catch {
     copyFeedbackEl.textContent = '复制失败，请手动复制';
+  } finally {
+    isCopying = false;
+    copyBtn.disabled = false;
   }
 }
 
@@ -197,22 +208,26 @@ function mergeReferenceIds(existing, incoming) {
   return [...new Set([...(existing || []), ...(incoming || [])])].filter(Boolean).slice(-60);
 }
 
-function saveCopiedOutput(text) {
+async function saveCopiedOutput(text) {
   if (shouldUseMockGenerator()) return;
+  if (!currentCopyId) return;
 
-  fetch('/api/copy', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      keywords: lastKeywords,
-      copied_text: text,
-      attempt_no: attemptNo,
-      reference_ids: currentReferenceIds,
-      previous_outputs: previousOutputs
-    })
-  }).catch(() => {});
+  try {
+    await fetch('/api/copy', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: currentCopyId,
+        keywords: lastKeywords,
+        copied_text: text,
+        attempt_no: attemptNo,
+        reference_ids: currentReferenceIds,
+        previous_outputs: previousOutputs
+      })
+    });
+  } catch {}
 }
 
 function clearHistory() {

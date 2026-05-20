@@ -1,5 +1,6 @@
 const KEYWORD_LIMIT = 40;
 const COPY_TEXT_LIMIT = 500;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function onRequest(context) {
   if (context.request.method === 'OPTIONS') {
@@ -28,15 +29,14 @@ async function handleCopy(context) {
 
     const payload = await readJson(request);
     const input = normalizeInput(payload);
-    const id = crypto.randomUUID();
 
-    await env.DB.prepare(
-      `INSERT INTO copied_outputs
+    const result = await env.DB.prepare(
+      `INSERT OR IGNORE INTO copied_outputs
         (id, keywords, copied_text, attempt_no, reference_ids, previous_outputs)
        VALUES (?, ?, ?, ?, ?, ?)`
     )
       .bind(
-        id,
+        input.id,
         input.keywords,
         input.copied_text,
         input.attempt_no,
@@ -45,9 +45,12 @@ async function handleCopy(context) {
       )
       .run();
 
-    queueBackgroundTask(context, recordAcceptedReferenceUsage(env.DB, input.reference_ids), 'Accepted reference usage update failed');
+    const inserted = (result?.meta?.changes ?? 0) > 0;
+    if (inserted) {
+      queueBackgroundTask(context, recordAcceptedReferenceUsage(env.DB, input.reference_ids), 'Accepted reference usage update failed');
+    }
 
-    return json({ ok: true, id });
+    return json({ ok: true, id: input.id, duplicate: !inserted });
   } catch (error) {
     if (error instanceof Response) {
       return error;
@@ -71,15 +74,20 @@ async function readJson(request) {
 }
 
 function normalizeInput(payload) {
+  const id = typeof payload?.id === 'string' ? payload.id.trim().toLowerCase() : '';
   const keywords = typeof payload?.keywords === 'string' ? payload.keywords.trim().slice(0, KEYWORD_LIMIT) : '';
   const copiedText = typeof payload?.copied_text === 'string' ? payload.copied_text.trim() : '';
   const attemptNo = Number.isInteger(payload?.attempt_no) ? payload.attempt_no : 0;
 
+  if (!UUID_PATTERN.test(id)) {
+    throw json({ ok: false, error: 'id must be a UUID' }, 400);
+  }
   if (!copiedText) {
     throw json({ ok: false, error: 'copied_text is required' }, 400);
   }
 
   return {
+    id,
     keywords,
     copied_text: copiedText.slice(0, COPY_TEXT_LIMIT),
     attempt_no: Math.min(Math.max(attemptNo, 0), 20),

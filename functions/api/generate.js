@@ -86,6 +86,10 @@ async function handleGenerate(context) {
     }
 
     timing.total_ms = elapsedMs(startedAt);
+    if (isQuotaError(error)) {
+      timing.llm_error = timing.llm_error || 'quota_exhausted';
+      return timedJson({ ok: false, error: '今日生成量已用尽，请明天再试', timing }, timing, 429);
+    }
     return timedJson({ ok: false, error: '生成失败，请稍后再试', timing }, timing, 500);
   }
 }
@@ -288,8 +292,13 @@ async function generateText(env, chatModel, prompt, attemptNo, timing) {
           ? await env.AI.run(chatModel, requestBody, aiRunOptions)
           : await env.AI.run(chatModel, requestBody);
     } catch (error) {
-      console.error('LLM generation failed', error);
-      timing.llm_error = error instanceof Error ? error.name : 'AIError';
+      if (isQuotaError(error)) {
+        timing.llm_error = 'quota_exhausted';
+        console.error('Workers AI quota hit', error);
+      } else {
+        console.error('LLM generation failed', error);
+        timing.llm_error = error instanceof Error ? error.name : 'AIError';
+      }
       throw error;
     }
     const llmMs = elapsedMs(llmStart);
@@ -533,6 +542,14 @@ function extractText(aiResponse) {
 
 function looksLikeReasoning(text) {
   return /用户让我|首先|然后|需要|检查字符|我得|思考/.test(text);
+}
+
+function isQuotaError(error) {
+  const haystack = [error?.message, error?.code, error?.status, error?.statusText]
+    .filter((value) => value !== undefined && value !== null)
+    .map(String)
+    .join(' ');
+  return /quota|rate[\s-]?limit|429|neuron|exceeded/i.test(haystack);
 }
 
 function violatesCopyRules(text) {
