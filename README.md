@@ -29,9 +29,10 @@ The current phase is a Cloudflare Pages MVP.
 - API: Cloudflare Pages Functions, `POST /api/generate` and `POST /api/copy`
 - Corpus store: Cloudflare D1 binding `DB`
 - Vector index: Cloudflare Vectorize binding `V50_INDEX`
-- Generation model: Cloudflare Workers AI, `@cf/qwen/qwen3-30b-a3b-fp8`
+- Generation model: Cloudflare Workers AI, `@cf/moonshotai/kimi-k2.5`
 - Embedding model: Cloudflare Workers AI, `@cf/baai/bge-m3`
 - Rate limiting: Cloudflare KV binding `RATE_LIMIT`
+- Corpus usage metadata: D1 tracks how often each corpus item is selected as a reference and how often it appears in accepted/copied outputs.
 - Planned domain: `v50.reporkey.com`
 
 If the cloud model fails, the UI shows:

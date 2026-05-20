@@ -69,12 +69,14 @@ async function handleGenerate(context) {
       return timedJson({ ok: false, error: '生成失败，请稍后再试', timing }, timing, 502);
     }
 
+    const referenceIds = references.map((item) => item.id);
+    queueBackgroundTask(context, recordReferenceUsage(env.DB, referenceIds), 'Reference usage update failed');
     timing.total_ms = elapsedMs(startedAt);
     return timedJson({
       ok: true,
       text,
       attempt_no: input.attempt_no,
-      reference_ids: references.map((item) => item.id),
+      reference_ids: referenceIds,
       source: 'rag',
       timing
     }, timing);
@@ -228,6 +230,26 @@ async function fetchCorpusRows(db, ids) {
   const byId = new Map(rows.map((row) => [row.id, row]));
 
   return uniqueIds.map((id) => byId.get(id)).filter(Boolean);
+}
+
+async function recordReferenceUsage(db, ids) {
+  if (!db) return;
+
+  const uniqueIds = [...new Set(ids)].filter(Boolean).slice(0, REFERENCE_LIMIT);
+  if (uniqueIds.length === 0) return;
+
+  await db.batch(
+    uniqueIds.map((id) =>
+      db
+        .prepare(
+          `UPDATE corpus_items
+             SET reference_count = COALESCE(reference_count, 0) + 1,
+                 last_referenced_at = CURRENT_TIMESTAMP
+           WHERE id = ?`
+        )
+        .bind(id)
+    )
+  );
 }
 
 async function generateText(env, chatModel, prompt, attemptNo, timing) {
@@ -471,6 +493,16 @@ function getClientIp(request) {
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     'unknown'
   );
+}
+
+function queueBackgroundTask(context, task, errorMessage) {
+  const guardedTask = Promise.resolve(task).catch((error) => {
+    console.error(errorMessage, error);
+  });
+
+  if (typeof context.waitUntil === 'function') {
+    context.waitUntil(guardedTask);
+  }
 }
 
 function extractText(aiResponse) {

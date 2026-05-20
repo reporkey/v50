@@ -19,6 +19,7 @@ let lastKeywords = '';
 let attemptNo = 0;
 let previousOutputs = [];
 let usedReferenceIds = [];
+let currentReferenceIds = [];
 
 function pickRandom(items) {
   return items[Math.floor(Math.random() * items.length)];
@@ -161,10 +162,12 @@ async function handleGenerate() {
     lastKeywords = keywords;
     attemptNo = payload.attempt_no;
     previousOutputs = nextPreviousOutputs;
+    currentReferenceIds = payload.reference_ids;
     usedReferenceIds = mergeReferenceIds(requestReferenceIds, payload.reference_ids);
     addToHistory(text);
   } catch (error) {
     currentCopyText = '';
+    currentReferenceIds = [];
     const message = error?.message === RATE_LIMIT_MESSAGE ? RATE_LIMIT_MESSAGE : API_ERROR_MESSAGE;
     resultTextEl.textContent = message;
   } finally {
@@ -206,7 +209,7 @@ function saveCopiedOutput(text) {
       keywords: lastKeywords,
       copied_text: text,
       attempt_no: attemptNo,
-      reference_ids: usedReferenceIds,
+      reference_ids: currentReferenceIds,
       previous_outputs: previousOutputs
     })
   }).catch(() => {});

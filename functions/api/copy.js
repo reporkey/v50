@@ -45,6 +45,8 @@ async function handleCopy(context) {
       )
       .run();
 
+    queueBackgroundTask(context, recordAcceptedReferenceUsage(env.DB, input.reference_ids), 'Accepted reference usage update failed');
+
     return json({ ok: true, id });
   } catch (error) {
     if (error instanceof Response) {
@@ -94,6 +96,36 @@ function normalizeStringArray(value, limit, itemLimit) {
     .map((item) => item.trim().slice(0, itemLimit))
     .filter(Boolean)
     .slice(0, limit);
+}
+
+async function recordAcceptedReferenceUsage(db, ids) {
+  if (!db) return;
+
+  const uniqueIds = [...new Set(ids)].filter(Boolean);
+  if (uniqueIds.length === 0) return;
+
+  await db.batch(
+    uniqueIds.map((id) =>
+      db
+        .prepare(
+          `UPDATE corpus_items
+             SET accepted_reference_count = COALESCE(accepted_reference_count, 0) + 1,
+                 last_accepted_at = CURRENT_TIMESTAMP
+           WHERE id = ?`
+        )
+        .bind(id)
+    )
+  );
+}
+
+function queueBackgroundTask(context, task, errorMessage) {
+  const guardedTask = Promise.resolve(task).catch((error) => {
+    console.error(errorMessage, error);
+  });
+
+  if (typeof context.waitUntil === 'function') {
+    context.waitUntil(guardedTask);
+  }
 }
 
 function json(body, status = 200, headers = {}) {
