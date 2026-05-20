@@ -10,3 +10,14 @@ remote = true
 binding = "RATE_LIMIT"
 id = "401f3985b7fb47358297af1d698594be"
 preview_id = "ad0f66c30024488b84e52bd4d1e51f61"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "v50-db"
+# Replace this after running: npx wrangler d1 create v50-db
+database_id = "990fbf0a-24de-4bd0-b5e8-44b3fe9b3e45"
+
+[[vectorize]]
+binding = "V50_INDEX"
+index_name = "v50-corpus"
+remote = true

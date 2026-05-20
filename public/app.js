@@ -4,7 +4,6 @@ const API_ERROR_MESSAGE = '生成失败，请稍后再试';
 const RATE_LIMIT_MESSAGE = '请求太频繁，请稍后再试';
 
 const keywordsEl = document.getElementById('keywords');
-const styleOptionsEl = document.getElementById('styleOptions');
 const resultTextEl = document.getElementById('resultText');
 const historyListEl = document.getElementById('historyList');
 const copyFeedbackEl = document.getElementById('copyFeedback');
@@ -13,83 +12,41 @@ const generateBtn = document.getElementById('generateBtn');
 const copyBtn = document.getElementById('copyBtn');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
-let selectedStyle = '随机';
 let hasGenerated = false;
 let isGenerating = false;
 let currentCopyText = '';
-
-const styleTemplates = {
-  发疯文学: [
-    '今天不为别的，就为{kw}这点执念。V我50，我立刻从人类进化成快乐尖叫鸡。',
-    '我盯着{kw}看了三小时，脑子只剩一句：快V我50，不然我要对空气发表千字疯言。',
-    '谁懂啊，{kw}把我CPU干烧了。V我50，让我在薯条香气里原地重启。'
-  ],
-  打工人: [
-    '早八晚九还在追{kw}，工位像战场。V我50，午休给自己加一口脆皮士气。',
-    '本月KPI追着我跑，{kw}又临时加码。V我50，让打工人续一条命。',
-    '我不是在搬砖，我是在为{kw}打补丁。V我50，下午会我就敢第一个发言。'
-  ],
-  恋爱脑: [
-    '今天本来想聊{kw}，结果越聊越想你。V我50，我去买点东西冷静一下。',
-    '你说{kw}不重要，可我连标点都想解读。V我50，恋爱脑今天需要维修费。',
-    '我把{kw}看了三遍，还是没看懂你到底喜不喜欢我。V我50，我去求个答案。'
-  ],
-  学生党: [
-    '早八点名，{kw}还没写完，老师说年轻人要有朝气。V我50，我买杯豆浆假装有。',
-    '宿舍灯一关，我和{kw}同时沉默。V我50，今晚的论文靠一口热量续命。',
-    '绩点不爱我，{kw}也不放过我。V我50，我去食堂窗口买点尊严。'
-  ],
-  时事热梗: [
-    '群里刚传{kw}，我认真分析了三分钟，结论是信息量太大。V我50，我去买杯饮料压压惊。',
-    '关于{kw}，本人目前没有内部消息，只有一个外部需求：V我50。',
-    '别问{kw}是真是假，问就是群聊观察员需要经费。V我50，我继续帮大家盯盘。'
-  ],
-  玄学求助: [
-    '刚给{kw}抽了一签，签上写着四个字：先V我50。',
-    '大师说{kw}最近缺一点火候。V我50，我去红色圣地替你补补运。',
-    '水逆、犯困、{kw}不顺，统称能量不足。V我50，我现场做法恢复。'
-  ],
-  群聊日常: [
-    '今日份精神状态：被{kw}拿捏，但还能笑着说“问题不大”。V我50，速来点赞续命。',
-    '朋友们，{kw}这事我先冲了。V我50，评论区见证我从嘴硬到真香。',
-    '打卡第N天：和{kw}斗智斗勇。V我50，这条朋友圈就当我的电子饭票。'
-  ],
-  通用: [
-    '周四了，灵魂在排队等脆皮。V我50，让我把这一口快乐写成史诗。',
-    '生活不一定容易，但V我50会让我嘴角先上扬三厘米。',
-    '今日K线全红不如我手里这份黄金脆响。V我50，马上切换好心情模式。'
-  ]
-};
+let lastKeywords = '';
+let attemptNo = 0;
+let previousOutputs = [];
+let usedReferenceIds = [];
 
 function pickRandom(items) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
-function resolveStyle(style) {
-  if (style === '随机') {
-    const candidates = ['发疯文学', '打工人', '恋爱脑', '学生党', '时事热梗', '玄学求助', '群聊日常'];
-    return pickRandom(candidates);
-  }
-  return style;
-}
-
-function mockGenerateCopy({ keywords, style }) {
-  const resolvedStyle = resolveStyle(style);
-  const source = styleTemplates[resolvedStyle] || styleTemplates.通用;
-  const template = pickRandom(source);
+function mockGenerateCopy({ keywords, attempt_no: nextAttemptNo }) {
+  const templates = [
+    '今天本来想认真聊{kw}，但我的精神状态刚走到门口就被星期四拦住了。V我50，我去给它赎回来。',
+    '关于{kw}这件事，我已经想出三套解决方案：冷静、沟通、以及你现在V我50让我先吃点。',
+    '通知：经群聊临时研究决定，{kw}造成的精神损耗统一按50元报销，请自觉转给我。',
+    '我和{kw}之间只差一个答案，和肯德基之间只差50块。先解决比较容易的那个，V我50。',
+    '别问{kw}怎么处理，问就是本人正在低电量模式。V我50，充完这口脆皮我继续嘴硬。'
+  ];
   const kw = keywords && keywords.trim() ? keywords.trim() : '今天的周四气氛';
+  const text = pickRandom(templates).replaceAll('{kw}', kw);
 
-  if (keywords && keywords.trim()) {
-    return template.replaceAll('{kw}', kw);
-  }
-
-  const generic = pickRandom(styleTemplates.通用);
-  return `${generic} ${template.replaceAll('{kw}', kw)}`;
+  return {
+    ok: true,
+    text,
+    attempt_no: nextAttemptNo,
+    reference_ids: [],
+    source: 'mock'
+  };
 }
 
-async function generateCopy({ keywords, style }) {
+async function generateCopy({ keywords, attempt_no, previous_outputs, used_reference_ids }) {
   if (shouldUseMockGenerator()) {
-    return mockGenerateCopy({ keywords, style });
+    return mockGenerateCopy({ keywords, attempt_no });
   }
 
   const response = await fetch('/api/generate', {
@@ -99,7 +56,9 @@ async function generateCopy({ keywords, style }) {
     },
     body: JSON.stringify({
       keywords: keywords.trim(),
-      style
+      attempt_no,
+      previous_outputs,
+      used_reference_ids
     })
   });
 
@@ -115,7 +74,14 @@ async function generateCopy({ keywords, style }) {
     throw new Error(message);
   }
 
-  return payload.text.trim();
+  return {
+    ok: true,
+    text: payload.text.trim(),
+    attempt_no: Number.isInteger(payload.attempt_no) ? payload.attempt_no : attempt_no,
+    reference_ids: Array.isArray(payload.reference_ids) ? payload.reference_ids : [],
+    source: payload.source || 'rag',
+    timing: payload.timing || null
+  };
 }
 
 function shouldUseMockGenerator() {
@@ -166,8 +132,12 @@ function addToHistory(copyText) {
 async function handleGenerate() {
   if (isGenerating) return;
 
-  const keywords = keywordsEl.value;
-  const style = selectedStyle;
+  const keywords = keywordsEl.value.trim();
+  const isRegenerate = hasGenerated && keywords === lastKeywords;
+  const nextAttemptNo = isRegenerate ? attemptNo + 1 : 0;
+  const nextPreviousOutputs =
+    isRegenerate && currentCopyText ? [...previousOutputs, currentCopyText].slice(-5) : [];
+  const requestReferenceIds = isRegenerate ? usedReferenceIds : [];
 
   isGenerating = true;
   generateBtn.disabled = true;
@@ -175,10 +145,23 @@ async function handleGenerate() {
   copyFeedbackEl.textContent = '';
 
   try {
-    const text = await generateCopy({ keywords, style });
+    const payload = await generateCopy({
+      keywords,
+      attempt_no: nextAttemptNo,
+      previous_outputs: nextPreviousOutputs,
+      used_reference_ids: requestReferenceIds
+    });
+    if (payload.timing) {
+      console.info('V50 generation timing', payload.timing);
+    }
+    const text = payload.text;
     resultTextEl.textContent = text;
     currentCopyText = text;
     hasGenerated = true;
+    lastKeywords = keywords;
+    attemptNo = payload.attempt_no;
+    previousOutputs = nextPreviousOutputs;
+    usedReferenceIds = mergeReferenceIds(requestReferenceIds, payload.reference_ids);
     addToHistory(text);
   } catch (error) {
     currentCopyText = '';
@@ -187,7 +170,7 @@ async function handleGenerate() {
   } finally {
     isGenerating = false;
     generateBtn.disabled = false;
-    generateBtn.textContent = hasGenerated ? '再来一条' : '生成文案';
+    updateGenerateButtonLabel();
   }
 }
 
@@ -197,6 +180,7 @@ async function copyCurrentResult() {
 
   try {
     await navigator.clipboard.writeText(text);
+    saveCopiedOutput(text);
     copyFeedbackEl.textContent = '已复制';
     setTimeout(() => {
       copyFeedbackEl.textContent = '';
@@ -206,24 +190,45 @@ async function copyCurrentResult() {
   }
 }
 
+function mergeReferenceIds(existing, incoming) {
+  return [...new Set([...(existing || []), ...(incoming || [])])].filter(Boolean).slice(-60);
+}
+
+function saveCopiedOutput(text) {
+  if (shouldUseMockGenerator()) return;
+
+  fetch('/api/copy', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      keywords: lastKeywords,
+      copied_text: text,
+      attempt_no: attemptNo,
+      reference_ids: usedReferenceIds,
+      previous_outputs: previousOutputs
+    })
+  }).catch(() => {});
+}
+
 function clearHistory() {
   localStorage.removeItem(HISTORY_KEY);
   renderHistory([]);
 }
 
-function handleStyleSelect(event) {
-  const button = event.target.closest('.style-chip');
-  if (!button) return;
+function updateGenerateButtonLabel() {
+  if (!hasGenerated || keywordsEl.value.trim() !== lastKeywords) {
+    generateBtn.textContent = '生成文案';
+    return;
+  }
 
-  selectedStyle = button.dataset.style;
-  styleOptionsEl.querySelectorAll('.style-chip').forEach((chip) => {
-    chip.classList.toggle('active', chip === button);
-  });
+  generateBtn.textContent = '再来一条';
 }
 
 generateBtn.addEventListener('click', handleGenerate);
 copyBtn.addEventListener('click', copyCurrentResult);
 clearHistoryBtn.addEventListener('click', clearHistory);
-styleOptionsEl.addEventListener('click', handleStyleSelect);
+keywordsEl.addEventListener('input', updateGenerateButtonLabel);
 
 renderHistory(loadHistory());

@@ -1,31 +1,11 @@
-const ALLOWED_STYLES = ['随机', '发疯文学', '打工人', '恋爱脑', '学生党', '时事热梗', '玄学求助', '群聊日常'];
-const MODEL = '@cf/moonshotai/kimi-k2.6';
+const DEFAULT_CHAT_MODEL = '@cf/moonshotai/kimi-k2.6';
+const EMBEDDING_MODEL = '@cf/baai/bge-m3';
+const DEFAULT_QUERY = '周四 V50 疯狂星期四 群聊';
 const KEYWORD_LIMIT = 40;
-const MINUTE_LIMIT = 6;
-const DAILY_LIMIT = 30;
-const STYLE_GUIDES = {
-  发疯文学: '情绪过山车、夸张自嘲、突然破防，像群里精神状态很美丽但还能看懂。',
-  打工人: '办公室、加班、会议、KPI、工位、老板、周报等语境，语气疲惫但嘴硬好笑。',
-  恋爱脑: '暧昧、失恋、聊天、想你、求姻缘等情感语境，先真诚或拉扯，最后自然转向 V50。',
-  学生党: '早八、ddl、考试、论文、宿舍、食堂、社团、绩点等校园语境，轻微崩溃但好笑。',
-  时事热梗: '热点、新闻、财经、体育、科技等公共话题语境，只写成群聊玩笑或谣言式夸张，不要像真实新闻。',
-  玄学求助: '求签、转运、寺庙、占卜、水逆、开光等玄学语境，认真胡说但要落回 50 元。',
-  群聊日常: '像普通群消息、冷场吐槽、回复慢、红包、罚款、借钱、朋友互损，短一点也可以。'
-};
-const FORM_PATTERNS = [
-  '一句话短梗：普通群消息、谐音、改成语、假通知、假红包、假罚款、假借钱。',
-  '轻小作文：2-4 句，先认真铺垫，再用前文细节转向 V50。',
-  '伪规则/伪解释：把关键词解释成某种离谱但能回到 50 元的理由。',
-  '群聊求助：像真的在问问题、找人、报备、吐槽，最后才露出要 50 的目的。'
-];
-const COHERENCE_RULES = [
-  'V50 必须从关键词或前文细节长出来，让读者觉得“虽然离谱但接得上”。',
-  '结尾要让读者明白“我在向你/群友要 50”，可以写 V我50、借我50、转我50、你们欠我50、罚款50交我等变体。',
-  'V50 是“V我50/给我转50/凑50元”的梗，不是商品名；不要写“买V50”“吃V50”“一盒V50”。',
-  '不要写成“我请客”“我请你”“我请大家”“我自己付钱”“我掏 50”。',
-  '不要在结尾突然新增“我是 V50 打工人”这类没有铺垫的身份标签。',
-  '涉及真实公众人物或新闻时，必须明确写成梦见、群聊玩笑、编的通知、谣言式荒诞设定；不要写成真实新闻断言或第一人称亲历现场。'
-];
+const MINUTE_LIMIT = 10;
+const DAILY_LIMIT = 100;
+const REFERENCE_LIMIT = 6;
+const MIN_REFERENCE_LIMIT = 4;
 
 export async function onRequest(context) {
   if (context.request.method === 'OPTIONS') {
@@ -46,32 +26,332 @@ export async function onRequest(context) {
 
 async function handleGenerate(context) {
   const { request, env } = context;
+  const startedAt = performance.now();
+  const timing = {
+    llm_retried: false
+  };
 
   try {
-    const payload = await readJson(request);
-    const input = normalizeInput(payload);
+    const payload = await measure(timing, 'read_json_ms', () => readJson(request));
+    const input = measureSync(timing, 'normalize_ms', () => normalizeInput(payload));
     const ip = getClientIp(request);
 
-    const limited = !isLocalDevRequest(request) && (await isRateLimited(env.RATE_LIMIT, ip));
+    const limited =
+      !isLocalDevRequest(request) && (await measure(timing, 'rate_limit_ms', () => isRateLimited(env.RATE_LIMIT, ip)));
     if (limited) {
-      return json({ ok: false, error: '请求太频繁，请稍后再试' }, 429);
+      timing.total_ms = elapsedMs(startedAt);
+      return timedJson({ ok: false, error: '请求太频繁，请稍后再试', timing }, timing, 429);
     }
 
-    const resolvedStyle = resolveStyle(input.style);
-    const prompt = buildPrompt({ keywords: input.keywords, style: resolvedStyle });
-    const text = await generateText(env, prompt);
+    if (!env.AI || !env.DB || !env.V50_INDEX) {
+      timing.total_ms = elapsedMs(startedAt);
+      return timedJson({ ok: false, error: '生成服务未配置', timing }, timing, 503);
+    }
+
+    const queryText = input.keywords || DEFAULT_QUERY;
+    const queryVector = await measure(timing, 'embedding_ms', () => embedText(env, queryText));
+    const references = await getReferences(env, input, queryVector, timing);
+    if (references.length < MIN_REFERENCE_LIMIT) {
+      timing.total_ms = elapsedMs(startedAt);
+      return timedJson({ ok: false, error: '参考文案不足', timing }, timing, 502);
+    }
+
+    const chatModel = getChatModel(env);
+    timing.chat_model = chatModel;
+    const prompt = measureSync(timing, 'prompt_ms', () => buildPrompt({
+      keywords: input.keywords,
+      references,
+      previousOutputs: input.previous_outputs
+    }));
+    const text = await generateText(env, chatModel, prompt, input.attempt_no, timing);
     if (!text) {
-      return json({ ok: false, error: '生成失败，请稍后再试' }, 502);
+      timing.total_ms = elapsedMs(startedAt);
+      return timedJson({ ok: false, error: '生成失败，请稍后再试', timing }, timing, 502);
     }
 
-    return json({ ok: true, text, style: resolvedStyle, source: 'ai' });
+    timing.total_ms = elapsedMs(startedAt);
+    return timedJson({
+      ok: true,
+      text,
+      attempt_no: input.attempt_no,
+      reference_ids: references.map((item) => item.id),
+      source: 'rag',
+      timing
+    }, timing);
   } catch (error) {
     if (error instanceof Response) {
       return error;
     }
 
-    return json({ ok: false, error: '生成失败，请稍后再试' }, 500);
+    timing.total_ms = elapsedMs(startedAt);
+    return timedJson({ ok: false, error: '生成失败，请稍后再试', timing }, timing, 500);
   }
+}
+
+async function getReferences(env, input, queryVector, timing) {
+  if (input.attempt_no > 0 && input.attempt_no <= 2 && input.used_reference_ids.length > 0) {
+    const rows = await measure(timing, 'reuse_d1_ms', () =>
+      fetchCorpusRows(env.DB, input.used_reference_ids.slice(0, REFERENCE_LIMIT))
+    );
+    if (rows.length >= MIN_REFERENCE_LIMIT) {
+      timing.reference_strategy = 'reuse';
+      timing.reference_count = rows.length;
+      return rows;
+    }
+  }
+
+  const topK = input.attempt_no >= 3 ? 50 : 30;
+  const lambda = getMmrLambda(input.attempt_no);
+  const excludedIds = input.attempt_no >= 3 ? new Set(input.used_reference_ids) : new Set();
+  timing.reference_strategy = 'search';
+  timing.vector_top_k = topK;
+  timing.mmr_lambda = lambda;
+  timing.excluded_reference_count = excludedIds.size;
+
+  const candidates = await measure(timing, 'vector_ms', () => queryVectorIndex(env.V50_INDEX, queryVector, topK, excludedIds));
+  timing.vector_candidate_count = candidates.length;
+  const selected = measureSync(timing, 'mmr_ms', () => selectMmr(candidates, queryVector, REFERENCE_LIMIT, lambda));
+  let rows = await measure(timing, 'd1_ms', () =>
+    fetchCorpusRows(
+      env.DB,
+      selected.map((item) => item.id)
+    )
+  );
+
+  if (rows.length < MIN_REFERENCE_LIMIT && excludedIds.size > 0) {
+    timing.reference_strategy = 'fallback_search';
+    const fallbackCandidates = await measure(timing, 'fallback_vector_ms', () =>
+      queryVectorIndex(env.V50_INDEX, queryVector, topK, new Set())
+    );
+    timing.fallback_vector_candidate_count = fallbackCandidates.length;
+    const fallbackSelected = measureSync(timing, 'fallback_mmr_ms', () =>
+      selectMmr(fallbackCandidates, queryVector, REFERENCE_LIMIT, lambda)
+    );
+    rows = await measure(timing, 'fallback_d1_ms', () =>
+      fetchCorpusRows(
+        env.DB,
+        fallbackSelected.map((item) => item.id)
+      )
+    );
+  }
+
+  timing.reference_count = rows.length;
+  return rows;
+}
+
+async function embedText(env, text) {
+  const response = await env.AI.run(EMBEDDING_MODEL, {
+    text: [text]
+  });
+  const embeddings = extractEmbeddings(response, 1);
+  const vector = embeddings[0];
+  if (!Array.isArray(vector) || vector.length === 0) {
+    throw new Error('Embedding failed');
+  }
+  return vector;
+}
+
+async function queryVectorIndex(index, vector, topK, excludedIds) {
+  const result = await index.query(vector, {
+    topK,
+    returnValues: true,
+    returnMetadata: 'all'
+  });
+  const matches = Array.isArray(result?.matches) ? result.matches : [];
+
+  return matches
+    .filter((match) => match?.id && !excludedIds.has(match.id))
+    .map((match) => ({
+      id: match.id,
+      score: typeof match.score === 'number' ? match.score : 0,
+      values: Array.isArray(match.values) ? match.values : []
+    }));
+}
+
+function selectMmr(candidates, queryVector, limit, lambda) {
+  const pool = candidates.filter((item) => item.id);
+  const selected = [];
+
+  while (selected.length < limit && pool.length > 0) {
+    let bestIndex = 0;
+    let bestScore = -Infinity;
+
+    for (let i = 0; i < pool.length; i += 1) {
+      const candidate = pool[i];
+      const relevance = candidate.score || cosineSimilarity(queryVector, candidate.values);
+      const diversityPenalty =
+        selected.length === 0
+          ? 0
+          : Math.max(...selected.map((selectedItem) => cosineSimilarity(candidate.values, selectedItem.values)));
+      const score = lambda * relevance - (1 - lambda) * diversityPenalty;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+
+    selected.push(pool.splice(bestIndex, 1)[0]);
+  }
+
+  return selected;
+}
+
+function cosineSimilarity(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length === 0 || b.length === 0 || a.length !== b.length) {
+    return 0;
+  }
+
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+
+  if (normA === 0 || normB === 0) return 0;
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+async function fetchCorpusRows(db, ids) {
+  const uniqueIds = [...new Set(ids)].filter(Boolean).slice(0, REFERENCE_LIMIT);
+  if (uniqueIds.length === 0) return [];
+
+  const placeholders = uniqueIds.map(() => '?').join(', ');
+  const result = await db
+    .prepare(`SELECT id, text, source, source_url FROM corpus_items WHERE id IN (${placeholders})`)
+    .bind(...uniqueIds)
+    .all();
+  const rows = Array.isArray(result?.results) ? result.results : [];
+  const byId = new Map(rows.map((row) => [row.id, row]));
+
+  return uniqueIds.map((id) => byId.get(id)).filter(Boolean);
+}
+
+async function generateText(env, chatModel, prompt, attemptNo, timing) {
+  const prompts = [
+    prompt,
+    `${prompt}\n质量修正：上一版可能把付款方向写反了。请重写一条，必须是“我向读者/群友要 50”，不能写“我请你/我请大家/我请客”。`
+  ];
+
+  for (let i = 0; i < prompts.length; i += 1) {
+    const currentPrompt = prompts[i];
+    const llmStart = performance.now();
+    const requestBody = {
+      messages: [
+        {
+          role: 'system',
+          content: getSystemPrompt(chatModel)
+        },
+        {
+          role: 'user',
+          content: currentPrompt
+        }
+      ],
+      max_completion_tokens: 520,
+      temperature: getTemperature(attemptNo)
+    };
+    const chatTemplateKwargs = getChatTemplateKwargs(chatModel);
+    if (Object.keys(chatTemplateKwargs).length > 0) {
+      requestBody.chat_template_kwargs = chatTemplateKwargs;
+    }
+
+    const aiRunOptions = getAiRunOptions(chatModel);
+    let aiResponse;
+    try {
+      aiResponse =
+        Object.keys(aiRunOptions).length > 0
+          ? await env.AI.run(chatModel, requestBody, aiRunOptions)
+          : await env.AI.run(chatModel, requestBody);
+    } catch (error) {
+      console.error('LLM generation failed', error);
+      timing.llm_error = error instanceof Error ? error.name : 'AIError';
+      throw error;
+    }
+    const llmMs = elapsedMs(llmStart);
+    timing[`llm_attempt_${i + 1}_ms`] = llmMs;
+    timing.llm_ms = Math.round(((timing.llm_ms || 0) + llmMs) * 10) / 10;
+    timing.llm_attempts = i + 1;
+    const text = extractText(aiResponse);
+    if (text && !violatesCopyRules(text)) {
+      return text;
+    }
+    timing.llm_retried = true;
+  }
+
+  return '';
+}
+
+function buildPrompt({ keywords, references, previousOutputs }) {
+  const topic = keywords || DEFAULT_QUERY;
+  const referenceLines = references.map((item, index) => `${index + 1}. ${item.text.trim()}`);
+  const previousLines =
+    previousOutputs.length === 0
+      ? ['无']
+      : previousOutputs.map((item, index) => `${index + 1}. ${item.trim()}`).filter((item) => item.length > 3);
+
+  return [
+    '你是中文互联网 V50 梗写手，擅长疯狂星期四、小作文、群聊反转和荒诞借钱理由。',
+    'V50 的意思是“我向读者/群友要 50 元”，不是商品名。',
+    '',
+    '关键词：',
+    topic,
+    '',
+    '参考 V50 文案：',
+    ...referenceLines,
+    '',
+    '上一版文案：',
+    ...previousLines,
+    '',
+    '要求：',
+    '- 只输出一条正文',
+    '- 20-180 个中文字符左右',
+    '- 像真实网友写的 V50 梗，不像广告，不像解释',
+    '- 关键词必须自然成为铺垫的一部分',
+    '- 可以借鉴参考文案的节奏、反转方式和互联网语感',
+    '- 不要照抄参考文案',
+    '- 不要重复上一版的开头、结构或结尾',
+    '- 最后要让读者明白“我在向你/群友要 50”',
+    '- 禁止真实收款方式、二维码、账号、支付步骤'
+  ].join('\n');
+}
+
+function getMmrLambda(attemptNo) {
+  if (attemptNo >= 4) return 0.45;
+  if (attemptNo >= 3) return 0.55;
+  return 0.75;
+}
+
+function getTemperature(attemptNo) {
+  if (attemptNo >= 3) return 1;
+  if (attemptNo >= 1) return 0.95;
+  return 0.9;
+}
+
+function extractEmbeddings(response, expectedCount) {
+  const result = response?.result || response;
+  const data = result?.data || result?.embeddings || response?.data;
+
+  if (Array.isArray(data) && Array.isArray(data[0])) {
+    return data;
+  }
+
+  if (Array.isArray(data) && Array.isArray(result?.shape) && result.shape.length === 2) {
+    const [rows, dimensions] = result.shape;
+    const embeddings = [];
+    for (let row = 0; row < rows; row += 1) {
+      embeddings.push(data.slice(row * dimensions, (row + 1) * dimensions));
+    }
+    return embeddings;
+  }
+
+  if (Array.isArray(data) && expectedCount === 1 && data.every((value) => typeof value === 'number')) {
+    return [data];
+  }
+
+  return [];
 }
 
 async function readJson(request) {
@@ -89,61 +369,70 @@ async function readJson(request) {
 
 function normalizeInput(payload) {
   const keywords = typeof payload?.keywords === 'string' ? payload.keywords.trim() : '';
-  const style = typeof payload?.style === 'string' ? payload.style.trim() : '';
+  const attemptNo = Number.isInteger(payload?.attempt_no) ? payload.attempt_no : 0;
 
   if (keywords.length > KEYWORD_LIMIT) {
     throw json({ ok: false, error: '关键词太长' }, 400);
   }
 
-  if (!ALLOWED_STYLES.includes(style)) {
-    throw json({ ok: false, error: '无效风格' }, 400);
-  }
-
-  return { keywords, style };
+  return {
+    keywords,
+    attempt_no: Math.min(Math.max(attemptNo, 0), 20),
+    previous_outputs: normalizeStringArray(payload?.previous_outputs, 5, 360),
+    used_reference_ids: normalizeStringArray(payload?.used_reference_ids, 80, 120)
+  };
 }
 
-async function generateText(env, prompt) {
-  const prompts = [
-    prompt,
-    `${prompt}\n质量修正：上一版可能把付款方向写反了。请重写一条，必须是“我向读者/群友要 50”，不能写“我请你/我请大家/我请客”。`
-  ];
+function normalizeStringArray(value, limit, itemLimit) {
+  if (!Array.isArray(value)) return [];
 
-  for (const currentPrompt of prompts) {
-    const aiResponse = await env.AI.run(MODEL, {
-      messages: [
-        {
-          role: 'system',
-          content:
-            '你是一个中文互联网梗文案助手，擅长 V50 小作文和群聊反转梗。/no_think。只输出一条文案正文，不要解释，不要 Markdown，不要列表，不要标题。'
-        },
-        {
-          role: 'user',
-          content: currentPrompt
-        }
-      ],
-      max_completion_tokens: 460,
-      temperature: 0.95,
-      chat_template_kwargs: getChatTemplateKwargs()
-    });
-    const text = extractText(aiResponse);
-    if (text && !violatesCopyRules(text)) {
-      return text;
-    }
-  }
-
-  return '';
+  return value
+    .filter((item) => typeof item === 'string')
+    .map((item) => item.trim().slice(0, itemLimit))
+    .filter(Boolean)
+    .slice(0, limit);
 }
 
-function getChatTemplateKwargs() {
-  if (MODEL.includes('/moonshotai/kimi-')) {
+function getChatModel(env) {
+  const model = typeof env.CHAT_MODEL === 'string' ? env.CHAT_MODEL.trim() : '';
+  return model || DEFAULT_CHAT_MODEL;
+}
+
+function getSystemPrompt(chatModel) {
+  const base =
+    '你是一个中文互联网 V50 梗写手，擅长疯狂星期四、小作文、群聊反转和荒诞借钱理由。只输出一条文案正文，不要解释，不要 Markdown，不要列表，不要标题。';
+
+  if (chatModel.includes('/qwen/')) {
+    return `${base}/no_think`;
+  }
+
+  return base;
+}
+
+function getChatTemplateKwargs(chatModel) {
+  if (chatModel.includes('/moonshotai/kimi-')) {
     return {
       thinking: false,
       clear_thinking: true
     };
   }
 
+  if (chatModel.includes('/qwen/')) {
+    return {
+      enable_thinking: false
+    };
+  }
+
+  return {};
+}
+
+function getAiRunOptions(chatModel) {
+  if (chatModel.startsWith('@cf/') || chatModel.startsWith('@hf/')) {
+    return {};
+  }
+
   return {
-    enable_thinking: false
+    gateway: { id: 'default' }
   };
 }
 
@@ -184,32 +473,6 @@ function getClientIp(request) {
   );
 }
 
-function resolveStyle(style) {
-  if (style !== '随机') return style;
-  const candidates = ALLOWED_STYLES.filter((item) => item !== '随机');
-  return candidates[Math.floor(Math.random() * candidates.length)];
-}
-
-function buildPrompt({ keywords, style }) {
-  const topic = keywords || '周四、打工人、精神补给、饭点';
-  const styleGuide = STYLE_GUIDES[style] || STYLE_GUIDES.群聊日常;
-  return [
-    '/no_think',
-    '请写一条中文 V50 梗文案。它可以借用疯狂星期四语境，但不必直接说“疯狂星期四”；应该像群聊里会被转发的短梗或小作文，不像广告语。',
-    `主题/风格：${style}`,
-    `主题/风格执行：${styleGuide}`,
-    `关键词：${topic}`,
-    '可选形式：',
-    ...FORM_PATTERNS.map((pattern) => `- ${pattern}`),
-    '连贯性要求：',
-    ...COHERENCE_RULES.map((rule) => `- ${rule}`),
-    '要求：20-160 个中文字符左右；必须自然包含关键词或其语义；可以一行梗，也可以小作文；如果写反转，反转必须和前文有关；结尾要有向读者索要 50 元的表达，但不强制出现“疯狂星期四”。',
-    '避免：结尾只硬塞 V50；写成优惠广告；写成模板填空；过度堆叠感叹号；使用官方品牌身份或官方口吻；使用“请我吃点好的”“吃顿好的”“凑顿好的”等固定讨饭句。',
-    '禁止：提供真实转账方式、二维码、账号、支付步骤；仇恨、骚扰、露骨内容。',
-    '只输出文案正文。'
-  ].join('\n');
-}
-
 function extractText(aiResponse) {
   const choice = aiResponse?.choices?.[0];
   const message = choice?.message;
@@ -227,7 +490,7 @@ function extractText(aiResponse) {
     .replace(/^文案[:：]\s*/, '')
     .replace(/^["“”]+|["“”]+$/g, '')
     .trim()
-    .slice(0, 360);
+    .slice(0, 420);
 
   if (looksLikeReasoning(text)) {
     return '';
@@ -241,7 +504,7 @@ function looksLikeReasoning(text) {
 }
 
 function violatesCopyRules(text) {
-  return /我请你|我请大家|我请客|我自己付|我掏\s*50|请我吃点好的|吃顿好的|凑顿好的|买\s*V50|吃\s*V50|一盒\s*V50/.test(
+  return /我请你|我请大家|我请客|我自己付|我掏\s*50|请我吃点好的|吃顿好的|凑顿好的|买\s*V50|吃\s*V50|一盒\s*V50|二维码|收款码|支付宝账号|微信号[:：]/.test(
     text
   );
 }
@@ -257,10 +520,47 @@ function json(body, status = 200, headers = {}) {
   });
 }
 
+function timedJson(body, timing, status = 200, headers = {}) {
+  return json(body, status, {
+    'Server-Timing': formatServerTiming(timing),
+    ...headers
+  });
+}
+
+async function measure(timing, key, callback) {
+  const startedAt = performance.now();
+  try {
+    return await callback();
+  } finally {
+    timing[key] = elapsedMs(startedAt);
+  }
+}
+
+function measureSync(timing, key, callback) {
+  const startedAt = performance.now();
+  try {
+    return callback();
+  } finally {
+    timing[key] = elapsedMs(startedAt);
+  }
+}
+
+function elapsedMs(startedAt) {
+  return Math.round((performance.now() - startedAt) * 10) / 10;
+}
+
+function formatServerTiming(timing) {
+  return Object.entries(timing)
+    .filter(([, value]) => typeof value === 'number' && Number.isFinite(value))
+    .map(([key, value]) => `${key.replace(/_/g, '-')};dur=${value}`)
+    .join(', ');
+}
+
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Expose-Headers': 'Server-Timing'
   };
 }

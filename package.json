@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler pages dev public --ai AI --kv RATE_LIMIT",
-    "check": "node --check public/app.js && node --check functions/api/generate.js"
+    "check": "node --check public/app.js && node --check functions/api/generate.js && node --check functions/api/copy.js && node --check scripts/import-corpus.mjs && node --check scripts/index-corpus.mjs",
+    "migrate:local": "wrangler d1 migrations apply v50-db --local",
+    "migrate:remote": "wrangler d1 migrations apply v50-db --remote",
+    "import:corpus": "node scripts/import-corpus.mjs",
+    "index:corpus": "node scripts/index-corpus.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.92.0"
