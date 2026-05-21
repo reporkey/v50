@@ -1,97 +1,37 @@
 # V50 Copywriter
 
-This repository is for a small Chinese "V50 copywriting generator" website.
+Language: [English](README.md) | [简体中文](README.zh-CN.md)
 
-The product idea is a playful tool for generating "Crazy Thursday / V50" style copy. Users can optionally enter keywords, generate one short copy, regenerate another one, copy the result, and keep a short local history.
+Generate a fresh V50 post for your group chat.
 
-## Current Phase
+Type an optional keyword, click Generate, and keep hitting Again until one lands. When it feels right, copy it and send. The page keeps your latest 5 results so you can compare a few versions before choosing.
 
-The current phase is a Cloudflare Pages MVP.
+This is a fan-made meme tool, not an official KFC product, and it does not use official brand assets.
 
-- Frontend static files live in `public/`.
-- `POST /api/generate` is implemented as a Cloudflare Pages Function.
-- The backend retrieves reference V50 examples from D1 + Vectorize, then calls Cloudflare Workers AI through the `AI` binding.
-- Copied outputs are saved to D1 only after the user clicks Copy.
-- Users do not enter API keys.
-- A mock generator is still available when opening `public/index.html` directly or adding `?mock=1`.
+## What You Can Do
 
-## Planned Product Behavior
+- Add a keyword to steer the setup.
+- Generate one short V50 copy at a time.
+- Click Again for a different angle.
+- Copy the current result to your clipboard.
+- Revisit the latest 5 generated results on the page.
 
-- Optional keyword input.
-- Generate one copy at a time.
-- "Again" action to generate another copy.
-- Copy-to-clipboard action.
-- Recent history: store the latest 5 generated copies in `localStorage`.
+## For Curious Readers
 
-## Architecture
+The app does not search the internet live. It uses a built-in V50 example corpus that is stored in a SQL database and indexed in a vector database.
 
-- Frontend: Cloudflare Pages
-- API: Cloudflare Pages Functions, `POST /api/generate` and `POST /api/copy`
-- Corpus store: Cloudflare D1 binding `DB`
-- Vector index: Cloudflare Vectorize binding `V50_INDEX`
-- Generation model: Cloudflare Workers AI, `@cf/moonshotai/kimi-k2.5`
-- Embedding model: Cloudflare Workers AI, `@cf/baai/bge-m3`
-- Rate limiting: Cloudflare KV binding `RATE_LIMIT`
-- Corpus usage metadata: D1 tracks how often each corpus item is selected as a reference and how often it appears in accepted/copied outputs.
-- Planned domain: `v50.reporkey.com`
+When you enter a keyword, the app turns it into an embedding with BGE-M3, then searches the vector index for examples that are close in meaning. It also applies a small diversity step, so the references are not just six versions of the same joke. The selection is similarity-based, not purely random.
 
-If the cloud model fails, the UI shows:
+The final copy is written by Kimi K2.5. The model receives your keyword, the selected references, and recent previous outputs, then writes one new result.
 
-```text
-生成失败，请稍后再试
-```
+When you click Again, the app first stays close to the same references so the theme remains consistent. After more retries, it widens the search to make the next result less predictable.
 
-The production version should not automatically pretend that a failed AI response succeeded.
+When you click Copy, that result is recorded as an accepted output. The visible recent history is stored locally in your browser.
 
-## Local Development
+## Corpus Sources
 
-Install dependencies:
-
-```bash
-npm install
-```
-
-Create Cloudflare resources before using the real RAG path or running the Pages dev server:
-
-```bash
-npx wrangler d1 create v50-db
-npx wrangler vectorize create v50-corpus --dimensions 1024 --metric cosine
-```
-
-Replace the placeholder D1 `database_id` in `wrangler.toml`, then run:
-
-```bash
-npm run migrate:local
-npm run import:corpus
-CLOUDFLARE_ACCOUNT_ID=<your-account-id> CLOUDFLARE_API_TOKEN=<your-api-token> npm run index:corpus
-```
-
-Then run the Pages dev server:
-
-```bash
-npm run dev
-```
-
-For production data:
-
-```bash
-npm run migrate:remote
-npm run import:corpus -- --remote
-CLOUDFLARE_ACCOUNT_ID=<your-account-id> CLOUDFLARE_API_TOKEN=<your-api-token> npm run index:corpus
-```
-
-Run syntax checks:
-
-```bash
-npm run check
-```
-
-Before production deployment, replace the placeholder D1 ID and confirm the KV IDs in `wrangler.toml`.
-
-## Design Direction
-
-- The first screen should be the usable generator, not a marketing landing page.
-- The visual mood can reference fast food, Crazy Thursday, and red/white energy.
-- Do not use official KFC logos, official brand assets, or anything that looks like an official KFC page.
-- The UI should feel like a polished, fun, practical mini tool.
-- It must work well on desktop and mobile.
+- [Crazy Thursday](https://www.crazy-thursday.com/)
+- [vikiboss/v50](https://github.com/vikiboss/v50)
+- [Douban](https://www.douban.com/group/topic/253838719/)
+- [VME](https://vme.im/jokes?type=text)
+- Zhihu Zhuanlan: [632097424](https://zhuanlan.zhihu.com/p/632097424), [715926417](https://zhuanlan.zhihu.com/p/715926417), [440327119](https://zhuanlan.zhihu.com/p/440327119)
