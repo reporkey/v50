@@ -1,5 +1,5 @@
-const KEYWORD_LIMIT = 40;
-const COPY_TEXT_LIMIT = 500;
+import { CONFIG } from '../_lib/config.js';
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function onRequest(context) {
@@ -74,8 +74,9 @@ async function readJson(request) {
 }
 
 function normalizeInput(payload) {
+  const { input: inputCfg } = CONFIG;
   const id = typeof payload?.id === 'string' ? payload.id.trim().toLowerCase() : '';
-  const keywords = typeof payload?.keywords === 'string' ? payload.keywords.trim().slice(0, KEYWORD_LIMIT) : '';
+  const keywords = typeof payload?.keywords === 'string' ? payload.keywords.trim().slice(0, inputCfg.keywordLimit) : '';
   const copiedText = typeof payload?.copied_text === 'string' ? payload.copied_text.trim() : '';
   const attemptNo = Number.isInteger(payload?.attempt_no) ? payload.attempt_no : 0;
 
@@ -89,10 +90,10 @@ function normalizeInput(payload) {
   return {
     id,
     keywords,
-    copied_text: copiedText.slice(0, COPY_TEXT_LIMIT),
-    attempt_no: Math.min(Math.max(attemptNo, 0), 20),
-    reference_ids: normalizeStringArray(payload?.reference_ids, 80, 120),
-    previous_outputs: normalizeStringArray(payload?.previous_outputs, 5, 360)
+    copied_text: copiedText.slice(0, inputCfg.copyTextLimit),
+    attempt_no: Math.min(Math.max(attemptNo, 0), inputCfg.maxAttemptNo),
+    reference_ids: normalizeStringArray(payload?.reference_ids, inputCfg.usedReferenceIdsLimit, inputCfg.usedReferenceIdItemLimit),
+    previous_outputs: normalizeStringArray(payload?.previous_outputs, inputCfg.previousOutputsLimit, inputCfg.previousOutputItemLimit)
   };
 }
 

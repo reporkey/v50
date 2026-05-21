@@ -1,7 +1,9 @@
+const CONFIG = window.V50_CONFIG;
 const HISTORY_KEY = 'v50-copy-history';
-const MAX_HISTORY = 5;
-const API_ERROR_MESSAGE = '生成失败，请稍后再试';
-const RATE_LIMIT_MESSAGE = '请求太频繁，请稍后再试';
+const MAX_HISTORY = CONFIG.ui.maxHistory;
+const API_ERROR_MESSAGE = CONFIG.ui.messages.apiError;
+const RATE_LIMIT_MESSAGE = CONFIG.ui.messages.rateLimit;
+const COPY_FEEDBACK_TIMEOUT_MS = CONFIG.ui.copyFeedbackTimeoutMs;
 
 const keywordsEl = document.getElementById('keywords');
 const resultTextEl = document.getElementById('resultText');
@@ -194,7 +196,7 @@ async function copyCurrentResult() {
     copyFeedbackEl.textContent = '已复制';
     setTimeout(() => {
       copyFeedbackEl.textContent = '';
-    }, 1400);
+    }, COPY_FEEDBACK_TIMEOUT_MS);
     await saveCopiedOutput(text);
   } catch {
     copyFeedbackEl.textContent = '复制失败，请手动复制';
@@ -243,6 +245,8 @@ function updateGenerateButtonLabel() {
 
   generateBtn.textContent = '再来一条';
 }
+
+keywordsEl.maxLength = CONFIG.input.keywordLimit;
 
 generateBtn.addEventListener('click', handleGenerate);
 copyBtn.addEventListener('click', copyCurrentResult);

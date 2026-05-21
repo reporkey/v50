@@ -1,11 +1,4 @@
-const DEFAULT_CHAT_MODEL = '@cf/moonshotai/kimi-k2.5';
-const EMBEDDING_MODEL = '@cf/baai/bge-m3';
-const DEFAULT_QUERY = '周四 V50 疯狂星期四 群聊';
-const KEYWORD_LIMIT = 40;
-const MINUTE_LIMIT = 10;
-const DAILY_LIMIT = 20;
-const REFERENCE_LIMIT = 6;
-const MIN_REFERENCE_LIMIT = 4;
+import { CONFIG } from '../_lib/config.js';
 
 export async function onRequest(context) {
   if (context.request.method === 'OPTIONS') {
@@ -48,10 +41,10 @@ async function handleGenerate(context) {
       return timedJson({ ok: false, error: '生成服务未配置', timing }, timing, 503);
     }
 
-    const queryText = input.keywords || DEFAULT_QUERY;
+    const queryText = input.keywords || CONFIG.ai.defaultQuery;
     const queryVector = await measure(timing, 'embedding_ms', () => embedText(env, queryText));
     const references = await getReferences(env, input, queryVector, timing);
-    if (references.length < MIN_REFERENCE_LIMIT) {
+    if (references.length < CONFIG.retrieval.minReferenceLimit) {
       timing.total_ms = elapsedMs(startedAt);
       return timedJson({ ok: false, error: '参考文案不足', timing }, timing, 502);
     }
@@ -95,20 +88,27 @@ async function handleGenerate(context) {
 }
 
 async function getReferences(env, input, queryVector, timing) {
-  if (input.attempt_no > 0 && input.attempt_no <= 2 && input.used_reference_ids.length > 0) {
+  const { referenceLimit, minReferenceLimit, topK: topKConfig, attemptThresholds } = CONFIG.retrieval;
+
+  if (
+    input.attempt_no > 0 &&
+    input.attempt_no <= attemptThresholds.reuseMax &&
+    input.used_reference_ids.length > 0
+  ) {
     const rows = await measure(timing, 'reuse_d1_ms', () =>
-      fetchCorpusRows(env.DB, input.used_reference_ids.slice(0, REFERENCE_LIMIT))
+      fetchCorpusRows(env.DB, input.used_reference_ids.slice(0, referenceLimit))
     );
-    if (rows.length >= MIN_REFERENCE_LIMIT) {
+    if (rows.length >= minReferenceLimit) {
       timing.reference_strategy = 'reuse';
       timing.reference_count = rows.length;
       return rows;
     }
   }
 
-  const topK = input.attempt_no >= 3 ? 50 : 30;
+  const isDeepSearch = input.attempt_no >= attemptThresholds.deepSearch;
+  const topK = isDeepSearch ? topKConfig.deepSearch : topKConfig.standard;
   const lambda = getMmrLambda(input.attempt_no);
-  const excludedIds = input.attempt_no >= 3 ? new Set(input.used_reference_ids) : new Set();
+  const excludedIds = isDeepSearch ? new Set(input.used_reference_ids) : new Set();
   timing.reference_strategy = 'search';
   timing.vector_top_k = topK;
   timing.mmr_lambda = lambda;
@@ -116,7 +116,7 @@ async function getReferences(env, input, queryVector, timing) {
 
   const candidates = await measure(timing, 'vector_ms', () => queryVectorIndex(env.V50_INDEX, queryVector, topK, excludedIds));
   timing.vector_candidate_count = candidates.length;
-  const selected = measureSync(timing, 'mmr_ms', () => selectMmr(candidates, queryVector, REFERENCE_LIMIT, lambda));
+  const selected = measureSync(timing, 'mmr_ms', () => selectMmr(candidates, queryVector, referenceLimit, lambda));
   let rows = await measure(timing, 'd1_ms', () =>
     fetchCorpusRows(
       env.DB,
@@ -124,14 +124,14 @@ async function getReferences(env, input, queryVector, timing) {
     )
   );
 
-  if (rows.length < MIN_REFERENCE_LIMIT && excludedIds.size > 0) {
+  if (rows.length < minReferenceLimit && excludedIds.size > 0) {
     timing.reference_strategy = 'fallback_search';
     const fallbackCandidates = await measure(timing, 'fallback_vector_ms', () =>
       queryVectorIndex(env.V50_INDEX, queryVector, topK, new Set())
     );
     timing.fallback_vector_candidate_count = fallbackCandidates.length;
     const fallbackSelected = measureSync(timing, 'fallback_mmr_ms', () =>
-      selectMmr(fallbackCandidates, queryVector, REFERENCE_LIMIT, lambda)
+      selectMmr(fallbackCandidates, queryVector, referenceLimit, lambda)
     );
     rows = await measure(timing, 'fallback_d1_ms', () =>
       fetchCorpusRows(
@@ -146,7 +146,7 @@ async function getReferences(env, input, queryVector, timing) {
 }
 
 async function embedText(env, text) {
-  const response = await env.AI.run(EMBEDDING_MODEL, {
+  const response = await env.AI.run(CONFIG.ai.embeddingModel, {
     text: [text]
   });
   const embeddings = extractEmbeddings(response, 1);
@@ -222,7 +222,7 @@ function cosineSimilarity(a, b) {
 }
 
 async function fetchCorpusRows(db, ids) {
-  const uniqueIds = [...new Set(ids)].filter(Boolean).slice(0, REFERENCE_LIMIT);
+  const uniqueIds = [...new Set(ids)].filter(Boolean).slice(0, CONFIG.retrieval.referenceLimit);
   if (uniqueIds.length === 0) return [];
 
   const placeholders = uniqueIds.map(() => '?').join(', ');
@@ -239,7 +239,7 @@ async function fetchCorpusRows(db, ids) {
 async function recordReferenceUsage(db, ids) {
   if (!db) return;
 
-  const uniqueIds = [...new Set(ids)].filter(Boolean).slice(0, REFERENCE_LIMIT);
+  const uniqueIds = [...new Set(ids)].filter(Boolean).slice(0, CONFIG.retrieval.referenceLimit);
   if (uniqueIds.length === 0) return;
 
   await db.batch(
@@ -276,7 +276,7 @@ async function generateText(env, chatModel, prompt, attemptNo, timing) {
           content: currentPrompt
         }
       ],
-      max_completion_tokens: 520,
+      max_completion_tokens: CONFIG.ai.maxCompletionTokens,
       temperature: getTemperature(attemptNo)
     };
     const chatTemplateKwargs = getChatTemplateKwargs(chatModel);
@@ -316,7 +316,7 @@ async function generateText(env, chatModel, prompt, attemptNo, timing) {
 }
 
 function buildPrompt({ keywords, references, previousOutputs }) {
-  const topic = keywords || DEFAULT_QUERY;
+  const topic = keywords || CONFIG.ai.defaultQuery;
   const referenceLines = references.map((item, index) => `${index + 1}. ${item.text.trim()}`);
   const previousLines =
     previousOutputs.length === 0
@@ -350,15 +350,17 @@ function buildPrompt({ keywords, references, previousOutputs }) {
 }
 
 function getMmrLambda(attemptNo) {
-  if (attemptNo >= 4) return 0.45;
-  if (attemptNo >= 3) return 0.55;
-  return 0.75;
+  const { mmrLambda, attemptThresholds } = CONFIG.retrieval;
+  if (attemptNo >= attemptThresholds.maxDiversity) return mmrLambda.diverse;
+  if (attemptNo >= attemptThresholds.deepSearch) return mmrLambda.balanced;
+  return mmrLambda.focused;
 }
 
 function getTemperature(attemptNo) {
-  if (attemptNo >= 3) return 1;
-  if (attemptNo >= 1) return 0.95;
-  return 0.9;
+  const { temperature } = CONFIG.ai;
+  if (attemptNo >= CONFIG.retrieval.attemptThresholds.deepSearch) return temperature.deepSearch;
+  if (attemptNo >= 1) return temperature.regen;
+  return temperature.initial;
 }
 
 function extractEmbeddings(response, expectedCount) {
@@ -399,18 +401,19 @@ async function readJson(request) {
 }
 
 function normalizeInput(payload) {
+  const { input: inputCfg } = CONFIG;
   const keywords = typeof payload?.keywords === 'string' ? payload.keywords.trim() : '';
   const attemptNo = Number.isInteger(payload?.attempt_no) ? payload.attempt_no : 0;
 
-  if (keywords.length > KEYWORD_LIMIT) {
+  if (keywords.length > inputCfg.keywordLimit) {
     throw json({ ok: false, error: '关键词太长' }, 400);
   }
 
   return {
     keywords,
-    attempt_no: Math.min(Math.max(attemptNo, 0), 20),
-    previous_outputs: normalizeStringArray(payload?.previous_outputs, 5, 360),
-    used_reference_ids: normalizeStringArray(payload?.used_reference_ids, 80, 120)
+    attempt_no: Math.min(Math.max(attemptNo, 0), inputCfg.maxAttemptNo),
+    previous_outputs: normalizeStringArray(payload?.previous_outputs, inputCfg.previousOutputsLimit, inputCfg.previousOutputItemLimit),
+    used_reference_ids: normalizeStringArray(payload?.used_reference_ids, inputCfg.usedReferenceIdsLimit, inputCfg.usedReferenceIdItemLimit)
   };
 }
 
@@ -426,7 +429,7 @@ function normalizeStringArray(value, limit, itemLimit) {
 
 function getChatModel(env) {
   const model = typeof env.CHAT_MODEL === 'string' ? env.CHAT_MODEL.trim() : '';
-  return model || DEFAULT_CHAT_MODEL;
+  return model || CONFIG.ai.chatModel;
 }
 
 function getSystemPrompt(chatModel) {
@@ -470,6 +473,7 @@ function getAiRunOptions(chatModel) {
 async function isRateLimited(kv, ip) {
   if (!kv) return false;
 
+  const { minutely, daily, minuteBucketTtlSeconds, dayBucketTtlSeconds } = CONFIG.rateLimit;
   const now = Date.now();
   const minuteBucket = Math.floor(now / 60000);
   const dayBucket = new Date(now).toISOString().slice(0, 10);
@@ -477,11 +481,11 @@ async function isRateLimited(kv, ip) {
   const dayKey = `rl:${ip}:d:${dayBucket}`;
 
   const [minuteCount, dayCount] = await Promise.all([
-    incrementCounter(kv, minuteKey, 90),
-    incrementCounter(kv, dayKey, 90000)
+    incrementCounter(kv, minuteKey, minuteBucketTtlSeconds),
+    incrementCounter(kv, dayKey, dayBucketTtlSeconds)
   ]);
 
-  return minuteCount > MINUTE_LIMIT || dayCount > DAILY_LIMIT;
+  return minuteCount > minutely || dayCount > daily;
 }
 
 function isLocalDevRequest(request) {
