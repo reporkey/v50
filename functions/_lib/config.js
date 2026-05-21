@@ -27,7 +27,7 @@ export const CONFIG = {
   },
   rateLimit: {
     minutely: 10,
-    daily: 20,
+    daily: 40,
     minuteBucketTtlSeconds: 90,
     dayBucketTtlSeconds: 90000
   }
