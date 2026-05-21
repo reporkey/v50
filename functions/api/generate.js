@@ -25,9 +25,7 @@ export async function onRequest(context) {
 async function handleGenerate(context) {
   const { request, env } = context;
   const startedAt = performance.now();
-  const timing = {
-    llm_retried: false
-  };
+  const timing = {};
 
   try {
     // 1. Parse + validate request.
@@ -62,7 +60,7 @@ async function handleGenerate(context) {
       console.error('No-RAG fallback engaged', { keywords: input.keywords, attempt_no: input.attempt_no });
     }
 
-    // 5. Build the prompt and call the chat model (one corrective retry if the first output trips guardrails).
+    // 5. Build the prompt and call the chat model.
     const chatModel = getChatModel(env);
     timing.chat_model = chatModel;
     const prompt = measureSync(timing, 'prompt_ms', () => buildPrompt({
@@ -289,71 +287,52 @@ async function recordReferenceUsage(db, ids) {
   );
 }
 
-// Calls the chat model with the prompt; retries once with a corrective addendum if the first output trips guardrails.
-// Returns '' if both attempts fail (caller turns that into a 502).
+// Calls the chat model with the prompt. Returns whatever the model produced (possibly ''),
+// or throws on infrastructure errors (quota / network) for the caller to map to 429/500.
 async function generateText(env, chatModel, prompt, attemptNo, timing) {
-  // 1st prompt = the real one; 2nd is only used if the 1st result flips the payment direction or empties out.
-  const prompts = [
-    prompt,
-    `${prompt}\n质量修正：上一版可能把付款方向写反了。请重写一条，必须是“我向读者/群友要 50”，不能写“我请你/我请大家/我请客”。`
-  ];
-
-  for (let i = 0; i < prompts.length; i += 1) {
-    const currentPrompt = prompts[i];
-    const llmStart = performance.now();
-    const requestBody = {
-      messages: [
-        {
-          role: 'system',
-          content: getSystemPrompt(chatModel)
-        },
-        {
-          role: 'user',
-          content: currentPrompt
-        }
-      ],
-      max_completion_tokens: CONFIG.ai.maxCompletionTokens,
-      temperature: getTemperature(attemptNo)
-    };
-    const chatTemplateKwargs = getChatTemplateKwargs(chatModel);
-    if (Object.keys(chatTemplateKwargs).length > 0) {
-      requestBody.chat_template_kwargs = chatTemplateKwargs;
-    }
-
-    const aiRunOptions = getAiRunOptions(chatModel);
-    let aiResponse;
-    try {
-      aiResponse =
-        Object.keys(aiRunOptions).length > 0
-          ? await env.AI.run(chatModel, requestBody, aiRunOptions)
-          : await env.AI.run(chatModel, requestBody);
-    } catch (error) {
-      if (isQuotaError(error)) {
-        timing.llm_error = 'quota_exhausted';
-        console.error('Workers AI quota hit', error);
-      } else {
-        console.error('LLM generation failed', error);
-        timing.llm_error = error instanceof Error ? error.name : 'AIError';
+  const llmStart = performance.now();
+  const requestBody = {
+    messages: [
+      {
+        role: 'system',
+        content: getSystemPrompt(chatModel)
+      },
+      {
+        role: 'user',
+        content: prompt
       }
-      throw error;
-    }
-    const llmMs = elapsedMs(llmStart);
-    timing[`llm_attempt_${i + 1}_ms`] = llmMs;
-    timing.llm_ms = Math.round(((timing.llm_ms || 0) + llmMs) * 10) / 10;
-    timing.llm_attempts = i + 1;
-    // Accept the first usable + guardrail-passing output; otherwise record the retry and loop.
-    const text = extractText(aiResponse);
-    if (text && !violatesCopyRules(text)) {
-      return text;
-    }
-    timing.llm_retried = true;
+    ],
+    max_completion_tokens: CONFIG.ai.maxCompletionTokens,
+    temperature: getTemperature(attemptNo)
+  };
+  const chatTemplateKwargs = getChatTemplateKwargs(chatModel);
+  if (Object.keys(chatTemplateKwargs).length > 0) {
+    requestBody.chat_template_kwargs = chatTemplateKwargs;
   }
 
-  return '';
+  const aiRunOptions = getAiRunOptions(chatModel);
+  let aiResponse;
+  try {
+    aiResponse =
+      Object.keys(aiRunOptions).length > 0
+        ? await env.AI.run(chatModel, requestBody, aiRunOptions)
+        : await env.AI.run(chatModel, requestBody);
+  } catch (error) {
+    if (isQuotaError(error)) {
+      timing.llm_error = 'quota_exhausted';
+      console.error('Workers AI quota hit', error);
+    } else {
+      console.error('LLM generation failed', error);
+      timing.llm_error = error instanceof Error ? error.name : 'AIError';
+    }
+    throw error;
+  }
+  timing.llm_ms = elapsedMs(llmStart);
+  return extractText(aiResponse);
 }
 
-// Composes the user prompt. The Chinese section labels in the returned array (关键词, 参考 V50 文案,
-// 上一版文案, 要求) are what the model anchors to; system role lives in getSystemPrompt.
+// Composes the user prompt with this turn's data only — section labels (关键词, 参考 V50 文案,
+// 上一版文案, 本轮要求) are the model's anchors. Persona, output spec, and hard rules live in getSystemPrompt.
 function buildPrompt({ keywords, references, previousOutputs }) {
   const topic = keywords || CONFIG.ai.defaultQuery;
   const referenceLines = references.map((item, index) => `${index + 1}. ${item.text.trim()}`);
@@ -367,10 +346,6 @@ function buildPrompt({ keywords, references, previousOutputs }) {
     : [];
 
   return [
-    '你是中文互联网 疯狂星期四 V我50 梗写手。',
-    '疯狂星期四是一个网络 memo, 以肯德基每周四的优惠活动为主题, 结合各种有趣、疯狂、搞笑的故事、情节或事件, 通过在结尾处做出意外的转折来迷惑和激发读者的兴趣和情绪, 并提出v我50。',
-    'V我50 的意思是：我向读者/群友要 50 元。',
-    '',
     '关键词：',
     topic,
     '',
@@ -378,16 +353,12 @@ function buildPrompt({ keywords, references, previousOutputs }) {
     '上一版文案：',
     ...previousLines,
     '',
-    '要求：',
-    '- 只输出一条正文',
-    '- 20-180 个中文字符左右',
-    '- 回答应具有搞笑、意外或突兀的效果',
-    '- 关键词必须自然成为铺垫的一部分',
-    '- v我50只在最后才会出现. 前面故事阶段不要出现. ​',
-    '- 可以借鉴参考文案的节奏、反转方式和互联网语感',
-    '- 不要照抄参考文案',
-    '- 不要重复上一版的开头、结构或结尾',
-    '- 最后要让读者明白“我在向你/群友要 50”'
+    '本轮要求：',
+    '- 关键词必须自然融入铺垫，不能生硬出现。',
+    '- 借鉴参考文案的节奏、反转方式和互联网语感，但不要照抄。',
+    '- 不要重复上一版的开头、结构或结尾。',
+    '',
+    '请生成一条 V50 文案。'
   ].join('\n');
 }
 
@@ -488,13 +459,27 @@ function getChatModel(env) {
 // Model-specific system prompt tweaks. Qwen needs an explicit "/no_think" suffix to skip
 // its visible reasoning trace; other models just get the base prompt.
 function getSystemPrompt(chatModel) {
-  const base =
-    '你是一个中文互联网 V50 梗写手，擅长疯狂星期四、小作文、群聊反转和荒诞借钱理由。只输出一条文案正文，不要解释，不要 Markdown，不要列表，不要标题。';
-
+  const base = [
+    '你是中文互联网"疯狂星期四 V我50"梗写手。',
+    '',
+    '【背景】疯狂星期四是网络 meme：每周四 KFC 有优惠，网友用各种荒诞、出乎意料的小段子做铺垫，结尾突然向群友/读者要 50 块来吃 KFC。',
+    '',
+    '【核心语义·必须遵守】',
+    '- "V我50" = "向读者/群友要 50 元"这一社交动作，不是商品。说话人是收钱方，读者是付钱方。',
+    '- 严禁付款方向写反：禁止出现"我请你""我请大家""我请客""我自己付""我掏 50""请我吃""吃顿好的""凑顿好的"等任何让说话人付钱的表达。',
+    '- 严禁把 V50 当成商品：禁止出现"买 V50""吃 V50""一盒 V50"等把 V50 当物品的写法。',
+    '- 严禁泄露真实支付信息：禁止出现二维码、收款码、支付宝账号、微信号等。',
+    '',
+    '【输出规范】',
+    '- 只输出一条正文，不要解释、不要前后缀、不要 Markdown。',
+    '- 20-180 个中文字符。',
+    '- 风格：搞笑、意外、突兀；结尾必须有反转。',
+    '- "V我50"或等价表达只能出现在最后一句作为收尾，前面铺垫阶段不得出现。',
+    '- 结尾必须让读者明白"我在向你/群友要 50"。'
+  ].join('\n');
   if (chatModel.includes('/qwen/')) {
     return `${base}/no_think`;
   }
-
   return base;
 }
 
@@ -585,41 +570,10 @@ function queueBackgroundTask(context, task, errorMessage) {
   }
 }
 
-// Pull the model's text out of whichever response shape it returned, clean it up, reject leaked planning.
+// Pull the model's text out of Kimi's response envelope. Workers AI surfaces it either at
+// the top level (`response`) or in the OpenAI-compatible `choices[0].message.content` slot.
 function extractText(aiResponse) {
-  const choice = aiResponse?.choices?.[0];
-  const message = choice?.message;
-  // "Thinking" models occasionally put the final answer in reasoning_content when finish_reason is "stop".
-  const reasoningFallback =
-    choice?.finish_reason === 'stop' &&
-    typeof message?.reasoning_content === 'string' &&
-    message.reasoning_content.length <= 360
-      ? message.reasoning_content
-      : '';
-  // Try shapes in priority: Workers AI top-level → wrapper → OpenAI chat → legacy completion → thinking-model fallback.
-  const raw = aiResponse?.response || aiResponse?.result?.response || message?.content || choice?.text || reasoningFallback;
-
-  // Strip the noise models commonly add around their answer (code fences, bullet, "文案:" label, surrounding quotes), then cap length.
-  const text = String(raw)
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/^[-*]\s*/, '')
-    .replace(/^文案[:：]\s*/, '')
-    .replace(/^["“”]+|["“”]+$/g, '')
-    .trim()
-    .slice(0, 420);
-
-  // Reject leaked chain-of-thought so generateText falls through to the corrective retry.
-  if (looksLikeReasoning(text)) {
-    return '';
-  }
-
-  return text;
-}
-
-// Heuristic for "the model leaked its planning instead of writing copy". Brittle but cheap;
-// keywords are tuned to common Chinese LLM tells ("用户让我", "首先", "需要"...).
-function looksLikeReasoning(text) {
-  return /用户让我|首先|然后|需要|检查字符|我得|思考/.test(text);
+  return String(aiResponse?.response || aiResponse?.choices?.[0]?.message?.content || '').trim();
 }
 
 // Best-effort detection of "Workers AI quota exhausted". Cloudflare does not publish a stable
@@ -634,15 +588,6 @@ function isQuotaError(error) {
   return /quota|rate[\s-]?limit|429|neuron|exceeded/i.test(haystack);
 }
 
-// Guardrail covering the two most common LLM failure modes for this domain:
-//   - Flipping the V50 semantics ("我请你/我请客/我掏 50") so the speaker ends up paying.
-//   - Volunteering real payment info (QR codes, account numbers, WeChat IDs).
-// A match here triggers a single corrective retry in generateText.
-function violatesCopyRules(text) {
-  return /我请你|我请大家|我请客|我自己付|我掏\s*50|请我吃点好的|吃顿好的|凑顿好的|买\s*V50|吃\s*V50|一盒\s*V50|二维码|收款码|支付宝账号|微信号[:：]/.test(
-    text
-  );
-}
 
 function json(body, status = 200, headers = {}) {
   return new Response(JSON.stringify(body), {
