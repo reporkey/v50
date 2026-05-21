@@ -7,12 +7,11 @@ export const CONFIG = {
     chatModel: '@cf/moonshotai/kimi-k2.5',
     embeddingModel: '@cf/baai/bge-m3',
     maxCompletionTokens: 520,
-    defaultQuery: '周四 V50 疯狂星期四 群聊',
+    defaultQuery: '周四 V我50',
     temperature: { initial: 0.9, regen: 0.95, deepSearch: 1 }
   },
   retrieval: {
     referenceLimit: 6,
-    minReferenceLimit: 4,
     topK: { standard: 30, deepSearch: 50 },
     mmrLambda: { focused: 0.75, balanced: 0.55, diverse: 0.45 },
     attemptThresholds: { reuseMax: 2, deepSearch: 3, maxDiversity: 4 }
