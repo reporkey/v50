@@ -4,10 +4,11 @@
 
 export const CONFIG = {
   ai: {
-    chatModel: '@cf/moonshotai/kimi-k2.5',
+    chatModel: '@cf/moonshotai/kimi-k2.6',
     embeddingModel: '@cf/baai/bge-m3',
     maxCompletionTokens: 520,
     defaultQuery: '周四 V我50',
+    gatewayId: 'default',
     temperature: { initial: 0.9, regen: 0.95, deepSearch: 1 }
   },
   retrieval: {
@@ -22,8 +23,7 @@ export const CONFIG = {
     previousOutputsLimit: 5,
     previousOutputItemLimit: 360,
     usedReferenceIdsLimit: 80,
-    usedReferenceIdItemLimit: 120,
-    maxAttemptNo: 20
+    usedReferenceIdItemLimit: 120
   },
   rateLimit: {
     minutely: 10,

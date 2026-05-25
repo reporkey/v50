@@ -2,9 +2,10 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { resolveCorpusId } from './corpus-id.mjs';
 
 const DEFAULT_DATABASE = 'v50-db';
-const DEFAULT_CORPUS_PATH = 'samples/v50_corpus.json';
+const DEFAULT_CORPUS_PATH = 'references/v50_corpus.json';
 
 const options = parseArgs(process.argv.slice(2));
 const corpusPath = options.corpus || DEFAULT_CORPUS_PATH;
@@ -19,23 +20,21 @@ if (!Array.isArray(items)) {
 
 const seen = new Set();
 for (const item of items) {
-  if (!item || typeof item.id !== 'string' || !item.id.trim()) {
-    throw new Error('Every corpus item must have a non-empty string id');
+  if (typeof item?.text !== 'string' || !item.text.trim()) {
+    throw new Error('Every corpus item must have non-empty text');
   }
-  if (typeof item.text !== 'string' || !item.text.trim()) {
-    throw new Error(`Corpus item ${item.id} must have non-empty text`);
+  const id = resolveCorpusId(item);
+  if (seen.has(id)) {
+    throw new Error(`Duplicate corpus id: ${id}`);
   }
-  if (seen.has(item.id)) {
-    throw new Error(`Duplicate corpus id: ${item.id}`);
-  }
-  seen.add(item.id);
+  seen.add(id);
 }
 
 const sql = items
   .map(
     (item) =>
       `INSERT INTO corpus_items (id, text, source, source_url)
-VALUES (${sqlValue(item.id)}, ${sqlValue(item.text)}, ${sqlValue(item.source)}, ${sqlValue(item.source_url)})
+VALUES (${sqlValue(resolveCorpusId(item))}, ${sqlValue(item.text)}, ${sqlValue(item.source)}, ${sqlValue(item.source_url)})
 ON CONFLICT(id) DO UPDATE SET
   text = excluded.text,
   source = excluded.source,

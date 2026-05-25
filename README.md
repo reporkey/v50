@@ -2,31 +2,29 @@
 
 Language: [English](README.md) | [简体中文](README.zh-CN.md)
 
-Generate a fresh V50 post for your group chat.
+Generate a short V50 post.
 
-Type an optional keyword, click Generate, and keep hitting Again until one lands. When it feels right, copy it and send. The page keeps your latest 5 results so you can compare a few versions before choosing.
+Type a keyword and click Generate. If you're not happy with it, click Again until one lands, then copy it to your clipboard.
 
 This is a fan-made meme tool, not an official KFC product, and it does not use official brand assets.
 
-## What You Can Do
+## The Recipe
 
-- Add a keyword to steer the setup.
-- Generate one short V50 copy at a time.
+- Optional keyword.
+- Generate one piece of copy.
 - Click Again for a different angle.
 - Copy the current result to your clipboard.
-- Revisit the latest 5 generated results on the page.
+- Revisit your latest 5 results on the page.
 
 ## For Curious Readers
 
-The app does not search the internet live. It uses a built-in V50 example corpus that is stored in a SQL database and indexed in a vector database.
-
-When you enter a keyword, the app turns it into an embedding with BGE-M3, then searches the vector index for examples that are close in meaning. It also applies a small diversity step, so the references are not just six versions of the same joke. The selection is similarity-based, not purely random.
-
-The final copy is written by Kimi K2.5. The model receives your keyword, the selected references, and recent previous outputs, then writes one new result.
-
-When you click Again, the app first stays close to the same references so the theme remains consistent. After more retries, it widens the search to make the next result less predictable.
-
-When you click Copy, that result is recorded as an accepted output. The visible recent history is stored locally in your browser.
+- It doesn't search the internet. The project ships with a built-in set of example copy, which is stored in a SQL database and indexed in a vector database.
+- When you enter a keyword, BGE-M3 turns it into an embedding, then looks up the examples closest in meaning from the vector index.
+- Picking references isn't pure random sampling — it adds a bit of diversity so you don't end up with six versions of the same joke.
+- Your keyword, the selected references, and your most recent previous results go to Kimi K2.5, which writes a new piece of copy.
+- When you click Again, the first few tries stay close to the same references to keep the theme on track. After several clicks, it widens the search so the next result is more random.
+- When you click Copy, the result is recorded on the server and may be added to the corpus in the future.
+- The recent history shown on the page is stored only locally in your browser.
 
 ## Corpus Sources
 
@@ -35,3 +33,19 @@ When you click Copy, that result is recorded as an accepted output. The visible 
 - [Douban](https://www.douban.com/group/topic/253838719/)
 - [VME](https://vme.im/jokes?type=text)
 - Zhihu Zhuanlan: [632097424](https://zhuanlan.zhihu.com/p/632097424), [715926417](https://zhuanlan.zhihu.com/p/715926417), [440327119](https://zhuanlan.zhihu.com/p/440327119)
+
+## Contribute to the Corpus
+
+The example corpus lives in [`references/v50_corpus.json`](references/v50_corpus.json). Pull requests are warmly welcome — everyone is invited to add new V50 copy, and the funnier, the better.
+
+Each entry looks like this:
+
+```json
+{
+  "text": "your V50 copy goes here",
+  "source": "your name or where it came from",
+  "source_url": "https://link-to-the-original/or_empty"
+}
+```
+
+Add your items to the `items` array — no need to set an `id`, the import step generates a stable one from the text. Then open a pull request. Once it's merged, the maintainer re-imports and re-indexes the corpus (`npm run import:corpus` and `npm run index:corpus`) so your lines can start showing up in generations.

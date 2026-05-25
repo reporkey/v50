@@ -2,8 +2,9 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { resolveCorpusId } from './corpus-id.mjs';
 
-const DEFAULT_CORPUS_PATH = 'samples/v50_corpus.json';
+const DEFAULT_CORPUS_PATH = 'references/v50_corpus.json';
 const DEFAULT_INDEX = 'v50-corpus';
 const EMBEDDING_MODEL = '@cf/baai/bge-m3';
 const EMBEDDING_BATCH_SIZE = 50;
@@ -47,7 +48,7 @@ try {
       const item = batch[i];
       lines.push(
         JSON.stringify({
-          id: item.id,
+          id: resolveCorpusId(item),
           values: embeddings[i],
           metadata: item.source ? { source: item.source } : {}
         })
@@ -131,11 +132,8 @@ function extractEmbeddings(payload, expectedCount) {
 
 function validateBatch(batch) {
   for (const item of batch) {
-    if (!item || typeof item.id !== 'string' || !item.id.trim()) {
-      throw new Error('Every corpus item must have a non-empty string id');
-    }
-    if (typeof item.text !== 'string' || !item.text.trim()) {
-      throw new Error(`Corpus item ${item.id} must have non-empty text`);
+    if (typeof item?.text !== 'string' || !item.text.trim()) {
+      throw new Error('Every corpus item must have non-empty text');
     }
   }
 }

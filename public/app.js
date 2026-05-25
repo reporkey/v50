@@ -141,7 +141,7 @@ async function handleGenerate() {
   const isRegenerate = hasGenerated && keywords === lastKeywords;
   const nextAttemptNo = isRegenerate ? attemptNo + 1 : 0;
   const nextPreviousOutputs =
-    isRegenerate && currentCopyText ? [...previousOutputs, currentCopyText].slice(-5) : [];
+    isRegenerate && currentCopyText ? [...previousOutputs, currentCopyText].slice(-CONFIG.input.previousOutputsLimit) : [];
   const requestReferenceIds = isRegenerate ? usedReferenceIds : [];
 
   isGenerating = true;
@@ -207,7 +207,7 @@ async function copyCurrentResult() {
 }
 
 function mergeReferenceIds(existing, incoming) {
-  return [...new Set([...(existing || []), ...(incoming || [])])].filter(Boolean).slice(-60);
+  return [...new Set([...(existing || []), ...(incoming || [])])].filter(Boolean).slice(-CONFIG.input.maxTrackedReferenceIds);
 }
 
 async function saveCopiedOutput(text) {

@@ -91,7 +91,7 @@ function normalizeInput(payload) {
     id,
     keywords,
     copied_text: copiedText.slice(0, inputCfg.copyTextLimit),
-    attempt_no: Math.min(Math.max(attemptNo, 0), inputCfg.maxAttemptNo),
+    attempt_no: Math.max(attemptNo, 0),
     reference_ids: normalizeStringArray(payload?.reference_ids, inputCfg.usedReferenceIdsLimit, inputCfg.usedReferenceIdItemLimit),
     previous_outputs: normalizeStringArray(payload?.previous_outputs, inputCfg.previousOutputsLimit, inputCfg.previousOutputItemLimit)
   };

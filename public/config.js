@@ -1,11 +1,13 @@
 // Frontend tuning knobs. Loaded as a classic <script> before app.js so
 // it works under file:// (ESM imports are blocked from file:// origins).
-// Mirror `input.keywordLimit` in functions/_lib/config.js — the backend's
-// validation must match the HTML input attribute set from here.
+// Keep `input.keywordLimit` and `input.previousOutputsLimit` in sync with
+// functions/_lib/config.js — the backend clamps requests to the same values.
 
 window.V50_CONFIG = {
   input: {
-    keywordLimit: 40
+    keywordLimit: 40,
+    previousOutputsLimit: 5,
+    maxTrackedReferenceIds: 60
   },
   ui: {
     maxHistory: 5,

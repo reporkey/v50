@@ -432,8 +432,7 @@ function normalizeInput(payload) {
 
   return {
     keywords,
-    // Clamp attempt_no so a hostile client can't push the ladders to absurd values.
-    attempt_no: Math.min(Math.max(attemptNo, 0), inputCfg.maxAttemptNo),
+    attempt_no: Math.max(attemptNo, 0),
     previous_outputs: normalizeStringArray(payload?.previous_outputs, inputCfg.previousOutputsLimit, inputCfg.previousOutputItemLimit),
     used_reference_ids: normalizeStringArray(payload?.used_reference_ids, inputCfg.usedReferenceIdsLimit, inputCfg.usedReferenceIdItemLimit)
   };
@@ -510,7 +509,7 @@ function getAiRunOptions(chatModel) {
   }
 
   return {
-    gateway: { id: 'default' }
+    gateway: { id: CONFIG.ai.gatewayId }
   };
 }
 
