@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler pages dev public --ai AI --kv RATE_LIMIT",
-    "check": "node --check public/config.js && node --check public/app.js && node --check functions/_lib/config.js && node --check functions/api/generate.js && node --check functions/api/copy.js && node --check scripts/corpus-id.mjs && node --check scripts/import-corpus.mjs && node --check scripts/index-corpus.mjs",
+    "check": "node --check public/config.js && node --check public/app.js && node --check public/corpus.js && node --check public/submit.js && node --check public/admin.js && node --check functions/_lib/config.js && node --check functions/_lib/corpus-id.js && node --check functions/api/generate.js && node --check functions/api/copy.js && node --check functions/api/corpus/list.js && node --check functions/api/corpus/submit.js && node --check functions/api/admin/approve.js && node --check scripts/corpus-id.mjs && node --check scripts/import-corpus.mjs && node --check scripts/index-corpus.mjs",
     "migrate:local": "wrangler d1 migrations apply v50-db --local",
     "migrate:remote": "wrangler d1 migrations apply v50-db --remote",
     "import:corpus": "node scripts/import-corpus.mjs",
