@@ -122,7 +122,27 @@
       </div>
 
       <div class="tab-panel hidden" data-tab-panel="submit">
-        <!-- populated by submit.js (Task 10) -->
+        <section class="submit-card">
+          <header class="submit-head">
+            <p class="section-kicker">投稿</p>
+            <h2>提交一条 V50 文案</h2>
+            <p class="submit-help">写一条 20-180 字的 V我50 文案。通过审核后会进入语料库，被生成器引用。</p>
+          </header>
+          <form id="submitForm" class="submit-form">
+            <div class="field">
+              <label for="submitText">文案</label>
+              <textarea id="submitText" rows="5" maxlength="180" placeholder="把脑洞写下来..." required></textarea>
+              <span class="char-counter"><span id="submitCounter">0</span> / 180</span>
+            </div>
+            <div class="field">
+              <label for="submitAuthor">作者 / 来源（可选）</label>
+              <input id="submitAuthor" type="text" maxlength="40" placeholder="留空则记作 匿名" />
+            </div>
+            <div class="button-row">
+              <button id="submitBtn" class="btn primary" type="submit" disabled>提交投稿</button>
+            </div>
+          </form>
+        </section>
       </div>
     </main>
 
@@ -132,8 +152,11 @@
       <span>本机只负责生成借口，到账靠群友心情。</span>
     </footer>
 
+    <div id="toastHost" class="toast-host" aria-live="polite"></div>
+
     <script src="config.js"></script>
     <script src="app.js"></script>
     <script src="corpus.js"></script>
+    <script src="submit.js"></script>
   </body>
 </html>
