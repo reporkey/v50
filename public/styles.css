@@ -83,9 +83,49 @@ a {
   line-height: 1;
 }
 
+.tab-nav {
+  display: flex;
+  gap: 6px;
+  flex: 1 1 auto;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.tab-link {
+  border: 1px solid rgba(117, 58, 29, 0.18);
+  border-radius: 8px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #5b2b20;
+  font-weight: 800;
+  font-size: 14px;
+  transition: transform 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.tab-link:hover {
+  transform: translateY(-1px);
+}
+
+.tab-link.active {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red-dark);
+  box-shadow: 0 4px 0 var(--red-dark);
+}
+
+.tab-panel.hidden {
+  /* !important wins over the later .tab-panel[data-tab-panel="generate"]
+     display rule when the generate panel is hidden. */
+  display: none !important;
+}
+
 .app {
   flex: 1 0 auto;
   padding: 14px 0 12px;
+  display: block;
+}
+
+.tab-panel[data-tab-panel="generate"] {
   display: grid;
   gap: 14px;
   align-items: stretch;
@@ -504,20 +544,20 @@ input:focus {
 }
 
 @media (min-width: 760px) {
-  .app {
+  .tab-panel[data-tab-panel="generate"] {
+    display: grid;
+    gap: 14px;
     grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
-    padding: 14px 0 12px;
   }
 
-  .generator-card,
-  .history-card {
+  .tab-panel[data-tab-panel="generate"] .generator-card,
+  .tab-panel[data-tab-panel="generate"] .history-card {
     min-height: 620px;
   }
 
   .style-options {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-
 }
 
 @media (max-width: 520px) {

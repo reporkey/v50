@@ -12,6 +12,11 @@
         <span class="brand-mark">V</span>
         <span>V我50 文案机</span>
       </a>
+      <nav class="tab-nav" aria-label="主导航">
+        <button class="tab-link active" data-tab="generate" type="button">生成</button>
+        <button class="tab-link" data-tab="corpus" type="button">语料</button>
+        <button class="tab-link" data-tab="submit" type="button">投稿</button>
+      </nav>
       <a
         class="repo-link"
         href="https://github.com/reporkey/v50"
@@ -28,61 +33,71 @@
     </header>
 
     <main class="app">
-      <section class="generator-card">
-        <div class="hero-strip" aria-hidden="true">
-          <span class="stripe"></span>
-          <span class="stripe wide"></span>
-          <span class="stripe"></span>
-        </div>
-
-        <header class="hero">
-          <div>
-            <h1 class="art-title" aria-label="V我50 文案机">
-              <span class="title-main">V我50</span>
-              <span class="title-sub">文案机</span>
-            </h1>
-          </div>
-          <div class="food-mark" aria-hidden="true">
-            <img src="assets/food-combo.png" alt="" />
-          </div>
-        </header>
-
-        <div class="controls">
-          <div class="field">
-            <label for="keywords">关键词（可选）</label>
-            <input id="keywords" type="text" placeholder="例如：加班、ddl、恋爱脑" />
+      <div class="tab-panel" data-tab-panel="generate">
+        <section class="generator-card">
+          <div class="hero-strip" aria-hidden="true">
+            <span class="stripe"></span>
+            <span class="stripe wide"></span>
+            <span class="stripe"></span>
           </div>
 
-          <div class="button-row">
-            <button id="generateBtn" class="btn primary" type="button">生成文案</button>
-          </div>
-        </div>
-
-        <section class="result-wrap" aria-live="polite">
-          <div class="result-head">
+          <header class="hero">
             <div>
-              <p class="section-kicker">今日小票</p>
-              <h2>当前文案</h2>
+              <h1 class="art-title" aria-label="V我50 文案机">
+                <span class="title-main">V我50</span>
+                <span class="title-sub">文案机</span>
+              </h1>
             </div>
-            <button id="copyBtn" class="copy-btn">复制</button>
-          </div>
-          <p id="resultText" class="result-text">点击“生成文案”，领取你今天的 V50 文学。</p>
-          <p id="copyFeedback" class="copy-feedback" aria-live="polite"></p>
-        </section>
-      </section>
+            <div class="food-mark" aria-hidden="true">
+              <img src="assets/food-combo.png" alt="" />
+            </div>
+          </header>
 
-      <section class="history-card">
-        <div class="history-head">
-          <div>
-            <p class="section-kicker">灵感回收站</p>
-            <h2>最近 5 条</h2>
+          <div class="controls">
+            <div class="field">
+              <label for="keywords">关键词（可选）</label>
+              <input id="keywords" type="text" placeholder="例如：加班、ddl、恋爱脑" />
+            </div>
+
+            <div class="button-row">
+              <button id="generateBtn" class="btn primary" type="button">生成文案</button>
+            </div>
           </div>
-          <button id="clearHistoryBtn" class="text-btn subtle">清空</button>
-        </div>
-        <ul id="historyList" class="history-list">
-          <li class="empty">暂无历史，先生成一条试试。</li>
-        </ul>
-      </section>
+
+          <section class="result-wrap" aria-live="polite">
+            <div class="result-head">
+              <div>
+                <p class="section-kicker">今日小票</p>
+                <h2>当前文案</h2>
+              </div>
+              <button id="copyBtn" class="copy-btn">复制</button>
+            </div>
+            <p id="resultText" class="result-text">点击“生成文案”，领取你今天的 V50 文学。</p>
+            <p id="copyFeedback" class="copy-feedback" aria-live="polite"></p>
+          </section>
+        </section>
+
+        <section class="history-card">
+          <div class="history-head">
+            <div>
+              <p class="section-kicker">灵感回收站</p>
+              <h2>最近 5 条</h2>
+            </div>
+            <button id="clearHistoryBtn" class="text-btn subtle">清空</button>
+          </div>
+          <ul id="historyList" class="history-list">
+            <li class="empty">暂无历史，先生成一条试试。</li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="tab-panel hidden" data-tab-panel="corpus">
+        <!-- populated by corpus.js (Task 8) -->
+      </div>
+
+      <div class="tab-panel hidden" data-tab-panel="submit">
+        <!-- populated by submit.js (Task 10) -->
+      </div>
     </main>
 
     <footer class="site-footer">
