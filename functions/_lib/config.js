@@ -30,5 +30,19 @@ export const CONFIG = {
     daily: 40,
     minuteBucketTtlSeconds: 90,
     dayBucketTtlSeconds: 90000
+  },
+  corpus: {
+    submitTextMin: 20,
+    submitTextMax: 180,
+    submitAuthorMax: 40,
+    submitDefaultAuthor: '匿名',
+    listSearchQueryMax: 60,
+    listPageSizeMin: 10,
+    listPageSizeMax: 50,
+    listPageSizeDefault: 20
+  },
+  submitRateLimit: {
+    daily: 5,
+    dayBucketTtlSeconds: 90000
   }
 };
