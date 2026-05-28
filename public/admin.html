@@ -37,6 +37,16 @@
             <button id="tokenClear" class="text-btn subtle" type="button">清除登录</button>
           </div>
         </header>
+        <div class="queue-toolbar">
+          <label class="queue-select-all">
+            <input id="queueSelectAll" type="checkbox" />
+            <span id="queueSelectionInfo">已选 0 条</span>
+          </label>
+          <div class="queue-toolbar-actions">
+            <button id="queueBulkApprove" class="btn primary" type="button" disabled>批量通过</button>
+            <button id="queueBulkDelete" class="btn ghost danger" type="button" disabled>批量删除</button>
+          </div>
+        </div>
         <ul id="queueList" class="queue-list" aria-live="polite">
           <li class="empty">加载中...</li>
         </ul>
