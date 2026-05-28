@@ -36,9 +36,13 @@ This is a fan-made meme tool, not an official KFC product, and it does not use o
 
 ## Contribute to the Corpus
 
-The example corpus lives in [`references/v50_corpus.json`](references/v50_corpus.json). Pull requests are warmly welcome — everyone is invited to add new V50 copy, and the funnier, the better.
+The easiest way to contribute is through the website. On the home page, open the **投稿** tab, paste a 20–180 character V50 line, optionally add an author/source, and submit. The maintainer reviews submissions and approves the ones that fit; approved lines start appearing in generations within minutes.
 
-Each entry looks like this:
+You can browse what's already in the corpus (including pending submissions) from the **语料** tab on the same page.
+
+### Bulk PR Flow (advanced)
+
+For batch contributions or one-off bootstrapping, the original PR-based flow still works. The seed corpus lives in [`references/v50_corpus.json`](references/v50_corpus.json). Each entry looks like this:
 
 ```json
 {
@@ -48,4 +52,4 @@ Each entry looks like this:
 }
 ```
 
-Add your items to the `items` array — no need to set an `id`, the import step generates a stable one from the text. Then open a pull request. Once it's merged, the maintainer re-imports and re-indexes the corpus (`npm run import:corpus` and `npm run index:corpus`) so your lines can start showing up in generations.
+Add your items to the `items` array, open a PR, and the maintainer will run `npm run import:corpus` + `npm run index:corpus` after merge to materialize them.

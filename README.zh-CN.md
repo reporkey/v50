@@ -36,9 +36,13 @@
 
 ## 贡献语料
 
-示例语料都放在 [`references/v50_corpus.json`](references/v50_corpus.json)，非常欢迎大家通过 Pull Request 来贡献——人人都可以添加新的 V50 文案，越好笑越好。
+最简单的方式是通过网站投稿。打开首页的 **投稿** 标签页，写下一条 20–180 字的 V50 文案，可选填写作者 / 出处，提交即可。维护者会审核合适的投稿；通过后几分钟内就有机会出现在生成结果里。
 
-每一条长这样：
+也可以在同一页的 **语料** 标签页浏览已经收录的文案，以及还在排队的投稿。
+
+### 批量 PR 流程（进阶）
+
+如果想一次性贡献一大批文案，原来的 PR 流程仍然可用。种子语料放在 [`references/v50_corpus.json`](references/v50_corpus.json)，每一条长这样：
 
 ```json
 {
@@ -48,4 +52,4 @@
 }
 ```
 
-在 `items` 数组里加上你的条目（不用填 `id`，导入时会根据文案自动生成），然后提一个 Pull Request。合并之后，维护者会重新导入并建立索引（`npm run import:corpus` 和 `npm run index:corpus`），你的文案就有机会出现在生成结果里了。
+把条目加进 `items` 数组提一个 PR，合并后维护者会跑 `npm run import:corpus` 和 `npm run index:corpus` 把它们写入数据库。
