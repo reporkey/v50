@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>语料审核 · V我50 文案机</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="admin-page">
+    <header class="topbar" aria-label="站点导航">
+      <a class="topbar-brand" href="/" aria-label="返回首页">
+        <span class="brand-mark">V</span>
+        <span>语料审核</span>
+      </a>
+      <a class="text-btn subtle admin-back" href="/">返回</a>
+    </header>
+
+    <main class="admin-shell">
+      <section id="tokenGate" class="token-gate">
+        <h2>管理员登录</h2>
+        <p class="submit-help">输入 ADMIN_TOKEN secret 后才能审核。</p>
+        <form id="tokenForm">
+          <input id="tokenInput" type="password" autocomplete="off" required placeholder="ADMIN_TOKEN" />
+          <button class="btn primary" type="submit">登录</button>
+        </form>
+        <p id="tokenError" class="form-error" hidden></p>
+      </section>
+
+      <section id="queue" class="queue-card" hidden>
+        <header class="queue-head">
+          <div>
+            <p class="section-kicker">待审核</p>
+            <h2>投稿队列</h2>
+          </div>
+          <div class="queue-head-actions">
+            <button id="queueRefresh" class="btn ghost" type="button">刷新</button>
+            <button id="tokenClear" class="text-btn subtle" type="button">清除登录</button>
+          </div>
+        </header>
+        <ul id="queueList" class="queue-list" aria-live="polite">
+          <li class="empty">加载中...</li>
+        </ul>
+      </section>
+    </main>
+
+    <div id="toastHost" class="toast-host" aria-live="polite"></div>
+
+    <script src="config.js"></script>
+    <script src="admin.js"></script>
+  </body>
+</html>
