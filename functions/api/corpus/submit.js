@@ -19,16 +19,16 @@ async function handleSubmit(context) {
   try {
     if (!env.DB) return json({ ok: false, error: 'Submission service is not configured' }, 503);
 
+    const payload = await readJson(request);
+    const input = normalizeInput(payload);
+    const id = await resolveCorpusId({ text: input.text });
+
     const ip = getClientIp(request);
     const limited =
       !isLocalDevRequest(request) && (await isSubmitRateLimited(env.RATE_LIMIT, ip));
     if (limited) {
       return json({ ok: false, error: '今日投稿次数已达上限' }, 429);
     }
-
-    const payload = await readJson(request);
-    const input = normalizeInput(payload);
-    const id = await resolveCorpusId({ text: input.text });
 
     const existing = await env.DB
       .prepare('SELECT status FROM corpus_items WHERE id = ?')
