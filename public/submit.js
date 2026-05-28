@@ -12,10 +12,14 @@ let submitting = false;
 function updateState() {
   const length = textEl.value.trim().length;
   counterEl.textContent = String(length);
-  submitBtn.disabled =
-    submitting ||
-    length < SUBMIT_CONFIG.submitTextMin ||
-    length > SUBMIT_CONFIG.submitTextMax;
+  const tooShort = length < SUBMIT_CONFIG.submitTextMin;
+  const tooLong = length > SUBMIT_CONFIG.submitTextMax;
+  submitBtn.disabled = submitting || tooShort || tooLong;
+  const counterWrap = counterEl.parentElement;
+  if (counterWrap) {
+    counterWrap.classList.toggle('out-of-range', length > 0 && (tooShort || tooLong));
+    counterWrap.dataset.hint = tooShort && length > 0 ? `至少 ${SUBMIT_CONFIG.submitTextMin} 字` : '';
+  }
 }
 
 function showToast(message, kind) {
@@ -38,6 +42,7 @@ async function handleSubmit(event) {
 
   submitting = true;
   updateState();
+  submitBtn.classList.add('is-loading');
   const originalLabel = submitBtn.textContent;
   submitBtn.textContent = '提交中...';
 
@@ -80,6 +85,7 @@ async function handleSubmit(event) {
     showToast(SUBMIT_CONFIG.messages.submitGenericError, 'error');
   } finally {
     submitting = false;
+    submitBtn.classList.remove('is-loading');
     submitBtn.textContent = originalLabel;
     updateState();
   }

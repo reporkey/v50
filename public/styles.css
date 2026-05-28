@@ -391,8 +391,14 @@ input:focus {
 }
 
 .btn:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.72;
+}
+
+/* In-flight state — set by JS while a request is pending. */
+.btn.is-loading,
+.btn.is-loading:disabled {
+  cursor: wait;
 }
 
 .primary {
@@ -802,6 +808,14 @@ input:focus {
   align-self: flex-end;
   font-size: 12px;
   color: var(--muted);
+}
+
+.char-counter.out-of-range {
+  color: var(--red);
+}
+
+.char-counter[data-hint]:not([data-hint=""])::after {
+  content: " · " attr(data-hint);
 }
 
 .toast-host {

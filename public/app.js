@@ -146,6 +146,7 @@ async function handleGenerate() {
 
   isGenerating = true;
   generateBtn.disabled = true;
+  generateBtn.classList.add('is-loading');
   generateBtn.textContent = '生成中...';
   copyFeedbackEl.textContent = '';
 
@@ -179,6 +180,7 @@ async function handleGenerate() {
   } finally {
     isGenerating = false;
     generateBtn.disabled = false;
+    generateBtn.classList.remove('is-loading');
     updateGenerateButtonLabel();
   }
 }
@@ -190,6 +192,7 @@ async function copyCurrentResult() {
 
   isCopying = true;
   copyBtn.disabled = true;
+  copyBtn.classList.add('is-loading');
 
   try {
     await navigator.clipboard.writeText(text);
@@ -203,6 +206,7 @@ async function copyCurrentResult() {
   } finally {
     isCopying = false;
     copyBtn.disabled = false;
+    copyBtn.classList.remove('is-loading');
   }
 }
 
