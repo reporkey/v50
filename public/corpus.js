@@ -18,9 +18,13 @@ const state = {
 };
 
 let searchDebounceTimer = null;
+let fetchGen = 0;
 
 async function loadPage() {
-  if (state.loading) return;
+  const myGen = ++fetchGen;
+  const requestedStatus = state.status;
+  const requestedQuery = state.q;
+  const requestedPage = state.page;
   state.loading = true;
   listEl.innerHTML = '<li class="empty">加载中...</li>';
 
@@ -29,21 +33,25 @@ async function loadPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        q: state.q,
-        status: state.status,
-        page: state.page,
+        q: requestedQuery,
+        status: requestedStatus,
+        page: requestedPage,
         page_size: state.pageSize
       })
     });
     const payload = await response.json();
+    if (myGen !== fetchGen) return;
     if (!response.ok || !payload?.ok) throw new Error('list failed');
     renderList(payload.items, payload.total);
+    state.loaded = true;
   } catch (error) {
+    if (myGen !== fetchGen) return;
     console.error(error);
     listEl.innerHTML = `<li class="empty">${CORPUS_CONFIG.messages.browseError}</li>`;
   } finally {
-    state.loading = false;
-    state.loaded = true;
+    if (myGen === fetchGen) {
+      state.loading = false;
+    }
   }
 }
 
