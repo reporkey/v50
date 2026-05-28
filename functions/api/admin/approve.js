@@ -57,8 +57,14 @@ async function doApprove(env, id, timing, startedAt) {
   const row = await measure(timing, 'lookup_ms', () =>
     env.DB.prepare('SELECT id, text, author, status FROM corpus_items WHERE id = ?').bind(id).first()
   );
-  if (!row) return json({ ok: false, error: 'not_found' }, 404);
-  if (row.status === 'approved') return json({ ok: false, error: 'already_approved' }, 409);
+  if (!row) {
+    timing.total_ms = elapsedMs(startedAt);
+    return timedJson({ ok: false, error: 'not_found' }, timing, 404);
+  }
+  if (row.status === 'approved') {
+    timing.total_ms = elapsedMs(startedAt);
+    return timedJson({ ok: false, error: 'already_approved' }, timing, 409);
+  }
 
   let vector;
   try {
@@ -106,7 +112,10 @@ async function doDelete(env, id, timing, startedAt) {
   const row = await measure(timing, 'lookup_ms', () =>
     env.DB.prepare('SELECT id, status FROM corpus_items WHERE id = ?').bind(id).first()
   );
-  if (!row) return json({ ok: false, error: 'not_found' }, 404);
+  if (!row) {
+    timing.total_ms = elapsedMs(startedAt);
+    return timedJson({ ok: false, error: 'not_found' }, timing, 404);
+  }
 
   if (env.V50_INDEX) {
     try {
