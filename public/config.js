@@ -17,5 +17,40 @@ window.V50_CONFIG = {
       rateLimit: '请求太频繁，请稍后再试',
       quotaExhausted: '今日生成量已用尽，请明天再试'
     }
+  },
+  corpus: {
+    pageSize: 20,
+    submitTextMin: 20,
+    submitTextMax: 180,
+    submitAuthorMax: 40,
+    submitDefaultAuthor: '匿名',
+    searchQueryMax: 60,
+    toastTimeoutMs: 3200,
+    statusLabels: {
+      approved: '已收录',
+      pending: '待审核'
+    },
+    messages: {
+      submitSuccess: '投稿成功，等待审核',
+      submitDuplicateApproved: '这条已经在语料库里了',
+      submitDuplicatePending: '这条已在投稿队列中，等待审核',
+      submitRateLimit: '今日投稿次数已达上限',
+      submitTooShort: '至少 20 个字',
+      submitTooLong: '不能超过 180 个字',
+      submitGenericError: '投稿失败，请稍后再试',
+      browseError: '加载失败，请稍后再试'
+    }
+  },
+  admin: {
+    tokenStorageKey: 'v50-admin-token',
+    pageSize: 30,
+    toastTimeoutMs: 2800,
+    messages: {
+      unauthorized: '验证失败，请检查 token',
+      generic: '操作失败，请稍后再试',
+      embedFailed: '索引失败，请稍后再试',
+      approved: '已通过',
+      deleted: '已删除'
+    }
   }
 };
