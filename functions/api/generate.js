@@ -255,7 +255,11 @@ async function fetchCorpusRows(db, ids) {
 
   const placeholders = uniqueIds.map(() => '?').join(', ');
   const result = await db
-    .prepare(`SELECT id, text, author, source_url FROM corpus_items WHERE id IN (${placeholders})`)
+    .prepare(
+      `SELECT id, text, author, source_url FROM corpus_items
+        WHERE id IN (${placeholders})
+          AND status = 'approved'`
+    )
     .bind(...uniqueIds)
     .all();
   const rows = Array.isArray(result?.results) ? result.results : [];
