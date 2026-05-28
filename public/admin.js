@@ -1,5 +1,4 @@
 const ADMIN_CONFIG = window.V50_CONFIG.admin;
-const CORPUS_LABELS = window.V50_CONFIG.corpus.statusLabels;
 
 const tokenGate = document.getElementById('tokenGate');
 const tokenForm = document.getElementById('tokenForm');
@@ -48,7 +47,10 @@ function setToken(value) {
 
 async function probeToken(token) {
   // Probe by attempting an approve with a guaranteed-missing id.
-  // 401 → wrong token. 404 (not_found) or 400 → token is valid.
+  // 401 means wrong token. 404/400/409 from the server mean we passed
+  // auth and reached the action handler — token is valid.
+  // 5xx means the server is unconfigured (e.g., ADMIN_TOKEN unbound) —
+  // treat as a probe failure so the gate doesn't appear to pass.
   try {
     const response = await fetch('/api/admin/approve', {
       method: 'POST',
@@ -58,7 +60,9 @@ async function probeToken(token) {
       },
       body: JSON.stringify({ id: 'v50_probe_invalid', action: 'approve' })
     });
-    return response.status !== 401;
+    if (response.status === 401) return false;
+    if (response.status >= 500) return false;
+    return response.status >= 400 && response.status < 500;
   } catch {
     return false;
   }
@@ -132,9 +136,18 @@ function renderQueueItem(item) {
 
 async function act(id, action, sourceBtn, li) {
   if (sourceBtn.disabled) return;
-  sourceBtn.disabled = true;
-  const original = sourceBtn.textContent;
+  const rowButtons = Array.from(li.querySelectorAll('button'));
+  const originalLabels = new Map(rowButtons.map((btn) => [btn, btn.textContent]));
+  rowButtons.forEach((btn) => { btn.disabled = true; });
   sourceBtn.textContent = action === 'approve' ? '处理中...' : '删除中...';
+
+  const restore = () => {
+    rowButtons.forEach((btn) => {
+      btn.disabled = false;
+      const original = originalLabels.get(btn);
+      if (original !== undefined) btn.textContent = original;
+    });
+  };
 
   try {
     const response = await fetch('/api/admin/approve', {
@@ -160,8 +173,7 @@ async function act(id, action, sourceBtn, li) {
         ? ADMIN_CONFIG.messages.embedFailed
         : ADMIN_CONFIG.messages.generic;
       showToast(message, 'error');
-      sourceBtn.disabled = false;
-      sourceBtn.textContent = original;
+      restore();
       return;
     }
 
@@ -176,8 +188,7 @@ async function act(id, action, sourceBtn, li) {
   } catch (error) {
     console.error(error);
     showToast(ADMIN_CONFIG.messages.generic, 'error');
-    sourceBtn.disabled = false;
-    sourceBtn.textContent = original;
+    restore();
   }
 }
 
