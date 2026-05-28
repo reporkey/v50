@@ -586,3 +586,148 @@ input:focus {
   }
 
 }
+
+.corpus-card,
+.submit-card {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  border: 1px solid rgba(117, 58, 29, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow);
+}
+
+.corpus-head,
+.submit-head {
+  margin-bottom: 14px;
+}
+
+.corpus-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.corpus-controls input {
+  min-height: 44px;
+}
+
+.filter-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  min-height: 36px;
+  padding: 4px 14px;
+  border: 1px solid rgba(117, 58, 29, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #5b2b20;
+  font-weight: 800;
+  font-size: 13px;
+  transition: transform 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.pill:hover {
+  transform: translateY(-1px);
+}
+
+.pill.active {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red-dark);
+}
+
+.corpus-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.corpus-list .empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.corpus-item {
+  position: relative;
+  padding: 12px 14px;
+  border: 1px solid #ead8c7;
+  border-radius: 8px;
+  background: #fffaf1;
+}
+
+.corpus-item.status-pending {
+  background: #fff6df;
+  border-color: #e6c870;
+}
+
+.corpus-text {
+  margin: 0 0 6px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.corpus-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.corpus-status {
+  font-weight: 800;
+}
+
+.corpus-status-approved {
+  color: var(--green);
+}
+
+.corpus-status-pending {
+  color: #9a6b00;
+}
+
+.corpus-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.page-info {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.btn.ghost {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(117, 58, 29, 0.22);
+  background: rgba(255, 255, 255, 0.86);
+  color: #5b2b20;
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.btn.ghost:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn.ghost:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

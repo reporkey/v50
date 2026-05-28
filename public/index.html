@@ -92,7 +92,33 @@
       </div>
 
       <div class="tab-panel hidden" data-tab-panel="corpus">
-        <!-- populated by corpus.js (Task 8) -->
+        <section class="corpus-card">
+          <header class="corpus-head">
+            <div>
+              <p class="section-kicker">语料库</p>
+              <h2>浏览与搜索</h2>
+            </div>
+          </header>
+
+          <div class="corpus-controls">
+            <input id="corpusSearch" type="text" placeholder="搜索文案..." maxlength="60" />
+            <div class="filter-pills" role="tablist" aria-label="状态筛选">
+              <button class="pill active" data-status="approved" type="button">已收录</button>
+              <button class="pill" data-status="pending" type="button">待审核</button>
+              <button class="pill" data-status="all" type="button">全部</button>
+            </div>
+          </div>
+
+          <ul id="corpusList" class="corpus-list" aria-live="polite">
+            <li class="empty">点击 “语料” 加载列表。</li>
+          </ul>
+
+          <footer class="corpus-foot">
+            <button id="corpusPrev" class="btn ghost" type="button" disabled>上一页</button>
+            <span id="corpusPageInfo" class="page-info">第 1 页 / 共 1 页</span>
+            <button id="corpusNext" class="btn ghost" type="button" disabled>下一页</button>
+          </footer>
+        </section>
       </div>
 
       <div class="tab-panel hidden" data-tab-panel="submit">
@@ -108,5 +134,6 @@
 
     <script src="config.js"></script>
     <script src="app.js"></script>
+    <script src="corpus.js"></script>
   </body>
 </html>
