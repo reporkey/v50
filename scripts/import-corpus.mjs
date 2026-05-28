@@ -33,11 +33,11 @@ for (const item of items) {
 const sql = items
   .map(
     (item) =>
-      `INSERT INTO corpus_items (id, text, source, source_url)
-VALUES (${sqlValue(resolveCorpusId(item))}, ${sqlValue(item.text)}, ${sqlValue(item.source)}, ${sqlValue(item.source_url)})
+      `INSERT INTO corpus_items (id, text, author, source_url)
+VALUES (${sqlValue(resolveCorpusId(item))}, ${sqlValue(item.text)}, ${sqlValue(item.author)}, ${sqlValue(item.source_url)})
 ON CONFLICT(id) DO UPDATE SET
   text = excluded.text,
-  source = excluded.source,
+  author = excluded.author,
   source_url = excluded.source_url;`
   )
   .join('\n\n');

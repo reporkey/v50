@@ -50,7 +50,7 @@ try {
         JSON.stringify({
           id: resolveCorpusId(item),
           values: embeddings[i],
-          metadata: item.source ? { source: item.source } : {}
+          metadata: item.author ? { author: item.author } : {}
         })
       );
     }

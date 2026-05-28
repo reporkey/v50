@@ -21,7 +21,7 @@ This is a fan-made meme tool, not an official KFC product, and it does not use o
 - It doesn't search the internet. The project ships with a built-in set of example copy, which is stored in a SQL database and indexed in a vector database.
 - When you enter a keyword, BGE-M3 turns it into an embedding, then looks up the examples closest in meaning from the vector index.
 - Picking references isn't pure random sampling — it adds a bit of diversity so you don't end up with six versions of the same joke.
-- Your keyword, the selected references, and your most recent previous results go to Kimi K2.5, which writes a new piece of copy.
+- Your keyword, the selected references, and your most recent previous results go to Kimi K2.6, which writes a new piece of copy.
 - When you click Again, the first few tries stay close to the same references to keep the theme on track. After several clicks, it widens the search so the next result is more random.
 - When you click Copy, the result is recorded on the server and may be added to the corpus in the future.
 - The recent history shown on the page is stored only locally in your browser.
@@ -43,7 +43,7 @@ Each entry looks like this:
 ```json
 {
   "text": "your V50 copy goes here",
-  "source": "your name or where it came from",
+  "author": "your name or where it came from",
   "source_url": "https://link-to-the-original/or_empty"
 }
 ```
