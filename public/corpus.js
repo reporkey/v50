@@ -5,7 +5,8 @@ const pillsEl = document.querySelectorAll('.corpus-card .pill');
 const listEl = document.getElementById('corpusList');
 const prevBtn = document.getElementById('corpusPrev');
 const nextBtn = document.getElementById('corpusNext');
-const pageInfoEl = document.getElementById('corpusPageInfo');
+const pageJumpEl = document.getElementById('corpusPageJump');
+const pageTotalEl = document.getElementById('corpusPageTotal');
 
 const state = {
   q: '',
@@ -90,9 +91,28 @@ function renderItem(item) {
 
 function updatePager() {
   const totalPages = Math.max(Math.ceil(state.total / state.pageSize), 1);
-  pageInfoEl.textContent = `第 ${state.page} 页 / 共 ${totalPages} 页`;
+  pageTotalEl.textContent = String(totalPages);
+  pageJumpEl.max = String(totalPages);
+  if (document.activeElement !== pageJumpEl) {
+    pageJumpEl.value = String(state.page);
+  }
+  pageJumpEl.disabled = totalPages <= 1;
   prevBtn.disabled = state.page <= 1;
   nextBtn.disabled = state.page >= totalPages;
+}
+
+function jumpToPage(rawValue) {
+  const totalPages = Math.max(Math.ceil(state.total / state.pageSize), 1);
+  const parsed = Number.parseInt(rawValue, 10);
+  if (!Number.isInteger(parsed)) {
+    pageJumpEl.value = String(state.page);
+    return;
+  }
+  const clamped = Math.min(Math.max(parsed, 1), totalPages);
+  pageJumpEl.value = String(clamped);
+  if (clamped === state.page) return;
+  state.page = clamped;
+  loadPage();
 }
 
 function selectStatus(status) {
@@ -131,6 +151,14 @@ pillsEl.forEach((pill) => {
   pill.addEventListener('click', () => selectStatus(pill.dataset.status));
 });
 searchEl.addEventListener('input', onSearchInput);
+pageJumpEl.addEventListener('change', () => jumpToPage(pageJumpEl.value));
+pageJumpEl.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    jumpToPage(pageJumpEl.value);
+    pageJumpEl.blur();
+  }
+});
 
 document.addEventListener('v50:tabchange', (event) => {
   if (event.detail?.tab === 'corpus' && !state.loaded) {

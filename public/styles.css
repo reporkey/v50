@@ -709,8 +709,41 @@ input:focus {
 }
 
 .page-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 13px;
   color: var(--muted);
+}
+
+.page-jump {
+  width: 56px;
+  min-height: 30px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.page-jump::-webkit-outer-spin-button,
+.page-jump::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.page-jump:focus {
+  outline: 2px solid rgba(255, 201, 64, 0.46);
+  border-color: var(--yellow);
+}
+
+.page-jump:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .btn.ghost {

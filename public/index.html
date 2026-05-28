@@ -115,7 +115,11 @@
 
           <footer class="corpus-foot">
             <button id="corpusPrev" class="btn ghost" type="button" disabled>上一页</button>
-            <span id="corpusPageInfo" class="page-info">第 1 页 / 共 1 页</span>
+            <span class="page-info">
+              第
+              <input id="corpusPageJump" class="page-jump" type="number" min="1" value="1" aria-label="跳转到页码" />
+              页 / 共 <span id="corpusPageTotal">1</span> 页
+            </span>
             <button id="corpusNext" class="btn ghost" type="button" disabled>下一页</button>
           </footer>
         </section>
