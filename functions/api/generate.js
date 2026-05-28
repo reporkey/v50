@@ -258,7 +258,8 @@ async function fetchCorpusRows(db, ids) {
     .prepare(
       `SELECT id, text, author, source_url FROM corpus_items
         WHERE id IN (${placeholders})
-          AND status = 'approved'`
+          AND status = 'approved'
+          AND indexed_at IS NOT NULL`
     )
     .bind(...uniqueIds)
     .all();

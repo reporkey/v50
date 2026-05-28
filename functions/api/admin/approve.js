@@ -35,7 +35,7 @@ async function handleApprove(context) {
     if (!id) return json({ ok: false, error: 'id_required' }, 400);
 
     if (action === 'approve') {
-      return await doApprove(env, id, timing, startedAt);
+      return await doApprove(context, id, timing, startedAt);
     }
     if (action === 'delete') {
       return await doDelete(env, id, timing, startedAt);
@@ -49,10 +49,8 @@ async function handleApprove(context) {
   }
 }
 
-async function doApprove(env, id, timing, startedAt) {
-  if (!env.AI || !env.V50_INDEX) {
-    return json({ ok: false, error: 'AI/Vectorize not configured' }, 503);
-  }
+async function doApprove(context, id, timing, startedAt) {
+  const { env } = context;
 
   const row = await measure(timing, 'lookup_ms', () =>
     env.DB.prepare('SELECT id, text, author, status FROM corpus_items WHERE id = ?').bind(id).first()
@@ -66,31 +64,10 @@ async function doApprove(env, id, timing, startedAt) {
     return timedJson({ ok: false, error: 'already_approved' }, timing, 409);
   }
 
-  let vector;
-  try {
-    vector = await measure(timing, 'embed_ms', () => embedText(env, row.text));
-  } catch (error) {
-    console.error('Embed failed', error);
-    timing.total_ms = elapsedMs(startedAt);
-    return timedJson({ ok: false, error: 'embed_failed' }, timing, 502);
-  }
-
-  try {
-    await measure(timing, 'upsert_ms', () =>
-      env.V50_INDEX.upsert([
-        {
-          id,
-          values: vector,
-          metadata: row.author ? { author: row.author } : {}
-        }
-      ])
-    );
-  } catch (error) {
-    console.error('Vectorize upsert failed', error);
-    timing.total_ms = elapsedMs(startedAt);
-    return timedJson({ ok: false, error: 'upsert_failed' }, timing, 502);
-  }
-
+  // Flip status in D1 first — admin sees this as a successful approve immediately.
+  // Embedding + Vectorize upsert run in the background via ctx.waitUntil so the
+  // response isn't gated on a 1-2s Workers AI call. The row will be searchable
+  // by RAG once indexCorpusItem completes (typically a few seconds later).
   await measure(timing, 'db_update_ms', () =>
     env.DB
       .prepare(
@@ -104,8 +81,45 @@ async function doApprove(env, id, timing, startedAt) {
       .run()
   );
 
+  queueBackgroundTask(
+    context,
+    indexCorpusItem(env, row),
+    `Background indexing failed for ${row.id}`
+  );
+
   timing.total_ms = elapsedMs(startedAt);
-  return timedJson({ ok: true, id, status: 'approved' }, timing);
+  return timedJson({ ok: true, id, status: 'approved', indexing: 'pending' }, timing);
+}
+
+// Embed text via Workers AI, upsert into Vectorize, then stamp indexed_at on
+// the D1 row. Throws on any failure so queueBackgroundTask logs it; the row
+// is left in status='approved' with indexed_at IS NULL so a future retry
+// (manual or scripted) can find it.
+async function indexCorpusItem(env, row) {
+  if (!env.AI || !env.V50_INDEX || !env.DB) {
+    throw new Error('AI/Vectorize/DB binding missing — cannot index');
+  }
+  const vector = await embedText(env, row.text);
+  await env.V50_INDEX.upsert([
+    {
+      id: row.id,
+      values: vector,
+      metadata: row.author ? { author: row.author } : {}
+    }
+  ]);
+  await env.DB
+    .prepare(`UPDATE corpus_items SET indexed_at = CURRENT_TIMESTAMP WHERE id = ?`)
+    .bind(row.id)
+    .run();
+}
+
+function queueBackgroundTask(context, task, errorMessage) {
+  const guardedTask = Promise.resolve(task).catch((error) => {
+    console.error(errorMessage, error);
+  });
+  if (typeof context.waitUntil === 'function') {
+    context.waitUntil(guardedTask);
+  }
 }
 
 async function doDelete(env, id, timing, startedAt) {
