@@ -6,7 +6,7 @@ export const CONFIG = {
   ai: {
     chatModel: '@cf/moonshotai/kimi-k2.6',
     embeddingModel: '@cf/baai/bge-m3',
-    maxCompletionTokens: 520,
+    maxCompletionTokens: 2000,
     defaultQuery: '周四 V我50',
     gatewayId: 'default',
     temperature: { initial: 0.9, regen: 0.95, deepSearch: 1 }
