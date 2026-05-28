@@ -20,8 +20,8 @@ window.V50_CONFIG = {
   },
   corpus: {
     pageSize: 20,
-    submitTextMin: 20,
-    submitTextMax: 180,
+    submitTextMin: 1,
+    submitTextMax: 1000,
     submitAuthorMax: 40,
     submitDefaultAuthor: '匿名',
     searchQueryMax: 60,
@@ -35,8 +35,8 @@ window.V50_CONFIG = {
       submitDuplicateApproved: '这条已经在语料库里了',
       submitDuplicatePending: '这条已在投稿队列中，等待审核',
       submitRateLimit: '今日投稿次数已达上限',
-      submitTooShort: '至少 20 个字',
-      submitTooLong: '不能超过 180 个字',
+      submitTooShort: '不能为空',
+      submitTooLong: '不能超过 1000 个字',
       submitGenericError: '投稿失败，请稍后再试',
       browseError: '加载失败，请稍后再试'
     }

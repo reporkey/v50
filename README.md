@@ -36,7 +36,7 @@ This is a fan-made meme tool, not an official KFC product, and it does not use o
 
 ## Contribute to the Corpus
 
-The easiest way to contribute is through the website. On the home page, open the **投稿** tab, paste a 20–180 character V50 line, optionally add an author/source, and submit. The maintainer reviews submissions and approves the ones that fit; approved lines start appearing in generations within minutes.
+The easiest way to contribute is through the website. On the home page, open the **投稿** tab, paste a V50 line (up to 1000 characters), optionally add an author/source, and submit. The maintainer reviews submissions and approves the ones that fit; approved lines start appearing in generations within minutes.
 
 You can browse what's already in the corpus (including pending submissions) from the **语料** tab on the same page.
 

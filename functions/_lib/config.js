@@ -32,8 +32,8 @@ export const CONFIG = {
     dayBucketTtlSeconds: 90000
   },
   corpus: {
-    submitTextMin: 20,
-    submitTextMax: 180,
+    submitTextMin: 1,
+    submitTextMax: 1000,
     submitAuthorMax: 40,
     submitDefaultAuthor: '匿名',
     listSearchQueryMax: 60,
