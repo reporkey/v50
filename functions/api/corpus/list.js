@@ -29,7 +29,7 @@ async function handleList(context) {
     }
 
     if (input.q) {
-      filters.push("text LIKE ? ESCAPE '\\\\'");
+      filters.push("text LIKE ? ESCAPE '\\'");
       args.push(`%${escapeLike(input.q)}%`);
     }
 
