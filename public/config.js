@@ -28,7 +28,8 @@ window.V50_CONFIG = {
     toastTimeoutMs: 3200,
     statusLabels: {
       approved: '已收录',
-      pending: '待审核'
+      pending: '待审核',
+      indexing: '索引中'
     },
     messages: {
       submitSuccess: '投稿成功，等待审核',
@@ -49,7 +50,7 @@ window.V50_CONFIG = {
       unauthorized: '验证失败，请检查 token',
       generic: '操作失败，请稍后再试',
       embedFailed: '索引失败，请稍后再试',
-      approved: '已通过',
+      approved: '已通过，索引中',
       deleted: '已删除'
     }
   }

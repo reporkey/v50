@@ -84,7 +84,7 @@ async function loadQueue() {
     const response = await fetch('/api/corpus/list', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'pending', page: 1, page_size: ADMIN_CONFIG.pageSize })
+      body: JSON.stringify({ status: 'queue', page: 1, page_size: ADMIN_CONFIG.pageSize })
     });
     const payload = await response.json();
     if (!response.ok || !payload?.ok) throw new Error('list failed');
@@ -146,14 +146,21 @@ function renderQueueItem(item) {
   text.className = 'queue-text';
   text.textContent = item.text;
 
+  // 'indexing' = approved but the background embed hasn't finished (or failed).
+  // Such rows stay in the queue so the admin can see and retry them.
+  const isIndexing = item.status === 'indexing';
+
   const meta = document.createElement('p');
   meta.className = 'queue-meta';
   const author = document.createElement('span');
   author.textContent = `作者：${item.author || '匿名'}`;
+  const statusEl = document.createElement('span');
+  statusEl.className = `queue-status queue-status-${item.status}`;
+  statusEl.textContent = isIndexing ? '索引中（未完成）' : '待审核';
   const time = document.createElement('span');
   const submittedAt = item.submitted_at || item.created_at;
   time.textContent = submittedAt ? `投稿：${submittedAt}` : '';
-  meta.append(author, time);
+  meta.append(author, statusEl, time);
 
   const actions = document.createElement('div');
   actions.className = 'queue-actions';
@@ -161,7 +168,7 @@ function renderQueueItem(item) {
   const approveBtn = document.createElement('button');
   approveBtn.className = 'btn primary';
   approveBtn.type = 'button';
-  approveBtn.textContent = '通过';
+  approveBtn.textContent = isIndexing ? '重试索引' : '通过';
   approveBtn.addEventListener('click', () => act(item.id, 'approve', approveBtn, li));
 
   const deleteBtn = document.createElement('button');

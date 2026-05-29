@@ -64,18 +64,20 @@ async function doApprove(context, id, timing, startedAt) {
     return timedJson({ ok: false, error: 'already_approved' }, timing, 409);
   }
 
-  // Flip status in D1 first — admin sees this as a successful approve immediately.
-  // Embedding + Vectorize upsert run in the background via ctx.waitUntil so the
-  // response isn't gated on a 1-2s Workers AI call. The row will be searchable
-  // by RAG once indexCorpusItem completes (typically a few seconds later).
+  // Move to 'indexing' and return immediately — the admin isn't made to wait on
+  // the 1-2s Workers AI embed. The embed + Vectorize upsert run in the background
+  // and only then promote the row to 'approved' (see indexCorpusItem). If that
+  // background step fails, the row stays 'indexing' instead of silently vanishing,
+  // so it remains in the admin queue and can be retried by clicking approve again.
+  // 'indexing' is accepted here too, which is exactly that retry path.
   await measure(timing, 'db_update_ms', () =>
     env.DB
       .prepare(
         `UPDATE corpus_items
-            SET status = 'approved',
-                approved_at = CURRENT_TIMESTAMP
+            SET status = 'indexing',
+                approved_at = COALESCE(approved_at, CURRENT_TIMESTAMP)
           WHERE id = ?
-            AND status = 'pending'`
+            AND status IN ('pending', 'indexing')`
       )
       .bind(id)
       .run()
@@ -88,7 +90,7 @@ async function doApprove(context, id, timing, startedAt) {
   );
 
   timing.total_ms = elapsedMs(startedAt);
-  return timedJson({ ok: true, id, status: 'approved', indexing: 'pending' }, timing);
+  return timedJson({ ok: true, id, status: 'indexing' }, timing);
 }
 
 // Embed text via Workers AI, upsert into Vectorize, then stamp indexed_at on
@@ -107,8 +109,15 @@ async function indexCorpusItem(env, row) {
       metadata: row.author ? { author: row.author } : {}
     }
   ]);
+  // Only now is the vector queryable, so promote 'indexing' → 'approved' and
+  // stamp indexed_at. Until this runs the row stays 'indexing' and out of RAG.
   await env.DB
-    .prepare(`UPDATE corpus_items SET indexed_at = CURRENT_TIMESTAMP WHERE id = ?`)
+    .prepare(
+      `UPDATE corpus_items
+          SET status = 'approved',
+              indexed_at = CURRENT_TIMESTAMP
+        WHERE id = ?`
+    )
     .bind(row.id)
     .run();
 }
@@ -230,7 +239,8 @@ function formatServerTiming(timing) {
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': '*',
+    // Same-origin app uses relative fetch paths; lock cross-origin reads to our domain.
+    'Access-Control-Allow-Origin': 'https://v50.reporkey.com',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token',
     'Access-Control-Expose-Headers': 'Server-Timing'

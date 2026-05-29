@@ -1,0 +1,18 @@
+# Cloudflare Pages response headers. https://developers.cloudflare.com/pages/configuration/headers/
+
+/*
+  X-Frame-Options: DENY
+  Content-Security-Policy: default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Content-Type-Options: nosniff
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# Decorative image rarely changes; cache hard. (Filename isn't content-hashed —
+# rename it if you ever need to force-bust this cache.)
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Admin console: keep it out of search indexes and out of caches.
+/admin*
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-store

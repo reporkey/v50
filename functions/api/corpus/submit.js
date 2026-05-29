@@ -24,12 +24,15 @@ async function handleSubmit(context) {
     const id = await resolveCorpusId({ text: input.text });
 
     const ip = getClientIp(request);
-    const limited =
-      !isLocalDevRequest(request) && (await isSubmitRateLimited(env.RATE_LIMIT, ip));
-    if (limited) {
+    const enforceLimit = !isLocalDevRequest(request);
+
+    // Reject IPs already at their daily cap (read-only — does not consume quota).
+    if (enforceLimit && (await isSubmitOverDailyLimit(env.RATE_LIMIT, ip))) {
       return json({ ok: false, error: '今日投稿次数已达上限' }, 429);
     }
 
+    // A duplicate line stores nothing, so check it BEFORE charging quota — a
+    // contributor pasting an existing line shouldn't lose a daily submission.
     const existing = await env.DB
       .prepare('SELECT status FROM corpus_items WHERE id = ?')
       .bind(id)
@@ -45,6 +48,11 @@ async function handleSubmit(context) {
       )
       .bind(id, input.text, input.author)
       .run();
+
+    // Charge the daily quota only after a genuinely new row is stored.
+    if (enforceLimit) {
+      await chargeSubmit(env.RATE_LIMIT, ip);
+    }
 
     return json({ ok: true, id, status: 'pending' }, 201);
   } catch (error) {
@@ -75,15 +83,27 @@ function normalizeInput(payload) {
   };
 }
 
-async function isSubmitRateLimited(kv, ip) {
-  if (!kv) return false;
-  const { daily, dayBucketTtlSeconds } = CONFIG.submitRateLimit;
+function submitDayKey(ip) {
   const dayBucket = new Date(Date.now()).toISOString().slice(0, 10);
-  const key = `submit:${ip}:d:${dayBucket}`;
+  return `submit:${ip}:d:${dayBucket}`;
+}
+
+// Read-only check: is this IP already at its daily submission cap?
+async function isSubmitOverDailyLimit(kv, ip) {
+  if (!kv) return false;
+  const current = Number((await kv.get(submitDayKey(ip))) || '0');
+  return current >= CONFIG.submitRateLimit.daily;
+}
+
+// Increment the daily counter. Called only after a successful new insert, so
+// duplicates and validation failures never consume the quota.
+async function chargeSubmit(kv, ip) {
+  if (!kv) return;
+  const key = submitDayKey(ip);
   const current = Number((await kv.get(key)) || '0');
-  const next = current + 1;
-  await kv.put(key, String(next), { expirationTtl: dayBucketTtlSeconds });
-  return next > daily;
+  await kv.put(key, String(current + 1), {
+    expirationTtl: CONFIG.submitRateLimit.dayBucketTtlSeconds
+  });
 }
 
 function isLocalDevRequest(request) {
@@ -124,7 +144,8 @@ function json(body, status = 200, headers = {}) {
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': '*',
+    // Same-origin app uses relative fetch paths; lock cross-origin reads to our domain.
+    'Access-Control-Allow-Origin': 'https://v50.reporkey.com',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type'
   };

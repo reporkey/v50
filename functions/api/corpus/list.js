@@ -17,13 +17,20 @@ async function handleList(context) {
   try {
     if (!env.DB) return json({ ok: false, error: 'Corpus listing is not configured' }, 503);
 
+    if (!isLocalDevRequest(request) && (await isMinuteRateLimited(env.RATE_LIMIT, 'list', getClientIp(request)))) {
+      return json({ ok: false, error: 'rate_limited' }, 429);
+    }
+
     const payload = await readJson(request);
     const input = normalizeInput(payload);
 
     const filters = [];
     const args = [];
 
-    if (input.status !== 'all') {
+    if (input.status === 'queue') {
+      // Admin moderation view: rows awaiting review or stuck mid-indexing.
+      filters.push("status IN ('pending', 'indexing')");
+    } else if (input.status !== 'all') {
       filters.push('status = ?');
       args.push(input.status);
     }
@@ -34,7 +41,7 @@ async function handleList(context) {
     }
 
     const where = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
-    const orderBy = input.status === 'pending'
+    const orderBy = input.status === 'pending' || input.status === 'queue'
       ? 'submitted_at ASC, created_at ASC'
       : 'created_at DESC';
     const offset = (input.page - 1) * input.page_size;
@@ -74,7 +81,8 @@ function normalizeInput(payload) {
   const { corpus: cfg } = CONFIG;
   const q = typeof payload?.q === 'string' ? payload.q.trim().slice(0, cfg.listSearchQueryMax) : '';
   const rawStatus = typeof payload?.status === 'string' ? payload.status.trim().toLowerCase() : '';
-  const status = rawStatus === 'pending' || rawStatus === 'all' ? rawStatus : 'approved';
+  const allowedStatuses = new Set(['pending', 'all', 'indexing', 'queue']);
+  const status = allowedStatuses.has(rawStatus) ? rawStatus : 'approved';
 
   const rawPage = Number.isInteger(payload?.page) ? payload.page : 1;
   const page = Math.max(rawPage, 1);
@@ -101,6 +109,32 @@ async function readJson(request) {
   }
 }
 
+// Per-IP minute-bucket limit (10/min, shared CONFIG.rateLimit knobs). Same
+// non-atomic GET→+1→PUT pattern as generate.js; `scope` keeps keys distinct.
+async function isMinuteRateLimited(kv, scope, ip) {
+  if (!kv) return false;
+  const { minutely, minuteBucketTtlSeconds } = CONFIG.rateLimit;
+  const minuteBucket = Math.floor(Date.now() / 60000);
+  const key = `rl:${scope}:${ip}:m:${minuteBucket}`;
+  const current = Number((await kv.get(key)) || '0');
+  const next = current + 1;
+  await kv.put(key, String(next), { expirationTtl: minuteBucketTtlSeconds });
+  return next > minutely;
+}
+
+function getClientIp(request) {
+  return (
+    request.headers.get('CF-Connecting-IP') ||
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    'unknown'
+  );
+}
+
+function isLocalDevRequest(request) {
+  const hostname = new URL(request.url).hostname;
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+}
+
 function json(body, status = 200, headers = {}) {
   return new Response(JSON.stringify(body), {
     status,
@@ -114,7 +148,8 @@ function json(body, status = 200, headers = {}) {
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': '*',
+    // Same-origin app uses relative fetch paths; lock cross-origin reads to our domain.
+    'Access-Control-Allow-Origin': 'https://v50.reporkey.com',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type'
   };

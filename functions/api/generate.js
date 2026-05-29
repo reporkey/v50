@@ -49,12 +49,11 @@ async function handleGenerate(context) {
       return timedJson({ ok: false, error: '生成服务未配置', timing }, timing, 503);
     }
 
-    // 3. Embed the query (defaults to a seasonal query if the user gave no keywords).
-    const queryText = input.keywords || CONFIG.ai.defaultQuery;
-    const queryVector = await measure(timing, 'embedding_query', () => embedText(env, queryText));
-
-    // 4. Retrieve reference snippets via Vectorize + MMR + D1. Soft-fallback to no-RAG if empty.
-    const references = await getReferences(env, input, queryVector, timing);
+    // 3. Retrieve reference snippets via Vectorize + MMR + D1. The query embedding
+    //    is computed lazily inside getReferences, only when the search path runs —
+    //    the reuse path (retries 1-2) refetches by id and needs no embedding.
+    //    Soft-fallback to no-RAG if empty.
+    const references = await getReferences(env, input, timing);
     if (references.length === 0) {
       timing.reference_strategy = 'no_rag';
       console.error('No-RAG fallback engaged', { keywords: input.keywords, attempt_no: input.attempt_no });
@@ -101,10 +100,12 @@ async function handleGenerate(context) {
 }
 
 // Returns up to `referenceLimit` corpus rows for the LLM to draw from. Strategy depends on attempt_no.
-async function getReferences(env, input, queryVector, timing) {
+async function getReferences(env, input, timing) {
   const { referenceLimit, topK: topKConfig, attemptThresholds } = CONFIG.retrieval;
 
-  // Reuse mode (1st-2nd retry): cheapest path — refetch the same references the previous attempt used.
+  // Reuse mode (1st-2nd retry): cheapest path — refetch the same references the
+  // previous attempt used. This needs no query embedding, so we return before
+  // computing one.
   if (
     input.attempt_no > 0 &&
     input.attempt_no <= attemptThresholds.reuseMax &&
@@ -119,6 +120,12 @@ async function getReferences(env, input, queryVector, timing) {
       return rows;
     }
   }
+
+  // Search mode needs the query vector — embed lazily here so the reuse path
+  // above never pays for an embedding it doesn't use. Defaults to a seasonal
+  // query when the user gave no keywords.
+  const queryText = input.keywords || CONFIG.ai.defaultQuery;
+  const queryVector = await measure(timing, 'embedding_query', () => embedText(env, queryText));
 
   // Search mode: vector lookup + MMR. From attempt 3 onward, broaden topK and exclude used IDs to force novelty.
   const isDeepSearch = input.attempt_no >= attemptThresholds.deepSearch;
@@ -642,7 +649,8 @@ function formatServerTiming(timing) {
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': '*',
+    // Same-origin app uses relative fetch paths; lock cross-origin reads to our domain.
+    'Access-Control-Allow-Origin': 'https://v50.reporkey.com',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Expose-Headers': 'Server-Timing'
