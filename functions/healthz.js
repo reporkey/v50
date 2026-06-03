@@ -51,24 +51,28 @@ export async function onRequest(context) {
 // Read-only liveness probe for D1. `SELECT 1` returns a constant and touches no table.
 function checkD1(env) {
   if (!env.DB) return Promise.resolve({ name: 'd1', ok: false, detail: 'unbound' });
-  return probe('d1', env.DB.prepare('SELECT 1').first());
+  return probe('d1', () => env.DB.prepare('SELECT 1').first());
 }
 
 // Read-only liveness probe for Vectorize, using the constant vector above (no embed call).
 function checkVectorize(env) {
   if (!env.V50_INDEX) return Promise.resolve({ name: 'vectorize', ok: false, detail: 'unbound' });
-  return probe('vectorize', env.V50_INDEX.query(PROBE_VECTOR, { topK: 1 }));
+  return probe('vectorize', () => env.V50_INDEX.query(PROBE_VECTOR, { topK: 1 }));
 }
 
-// Race a dependency's promise against a timeout and return a {name, ok, detail} verdict.
-// Never throws: `work` is pre-wrapped so a late rejection (after the timeout already won) is
-// swallowed rather than surfacing as an unhandled rejection. error → unhealthy; timeout →
-// healthy-but-flagged (transient blip); success → healthy.
+// Race a dependency probe against a timeout and return a {name, ok, detail} verdict. `work` is a
+// thunk so that a SYNCHRONOUS throw while building the query (e.g. a binding that isn't a real
+// D1/Vectorize object) is caught here and reported as unhealthy, exactly like an async rejection,
+// instead of escaping onRequest as an opaque 500. Never throws; a late rejection (after the
+// timeout already won) is also swallowed. error → unhealthy; timeout → healthy-but-flagged
+// (transient blip); success → healthy.
 function probe(name, work) {
-  const guarded = Promise.resolve(work).then(
-    () => ({ name, ok: true, detail: 'ok' }),
-    () => ({ name, ok: false, detail: 'error' })
-  );
+  const guarded = Promise.resolve()
+    .then(work)
+    .then(
+      () => ({ name, ok: true, detail: 'ok' }),
+      () => ({ name, ok: false, detail: 'error' })
+    );
   let timer;
   const timeout = new Promise((resolve) => {
     timer = setTimeout(() => resolve({ name, ok: true, detail: 'timeout' }), PROBE_TIMEOUT_MS);
