@@ -52,4 +52,4 @@ For batch contributions or one-off bootstrapping, the original PR-based flow sti
 }
 ```
 
-Add your items to the `items` array, open a PR, and the maintainer will run `npm run import:corpus` + `npm run index:corpus` after merge to materialize them.
+Add your items to the `items` array (and bump the top-level `item_count` to match — the import validates it), open a PR, and the maintainer will run `npm run import:corpus` + `npm run index:corpus` after merge to materialize them.

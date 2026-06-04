@@ -52,4 +52,4 @@
 }
 ```
 
-把条目加进 `items` 数组提一个 PR，合并后维护者会跑 `npm run import:corpus` 和 `npm run index:corpus` 把它们写入数据库。
+把条目加进 `items` 数组（并把顶层的 `item_count` 改成对应数量——导入时会校验），提一个 PR，合并后维护者会跑 `npm run import:corpus` 和 `npm run index:corpus` 把它们写入数据库。

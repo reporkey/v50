@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Mirrors the .brand-mark logo: red rounded square + bold white V -->
+  <rect width="64" height="64" rx="16" fill="#d71920"/>
+  <path fill="#fff" d="M14 15h12.5L32 34l5.5-19H50L37 49H27Z"/>
+</svg>
