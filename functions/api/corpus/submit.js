@@ -2,6 +2,9 @@
 // submission. Hard-rejects duplicates with 409 (no silent dedupe).
 import { CONFIG } from '../../_lib/config.js';
 import { resolveCorpusId } from '../../_lib/corpus-id.js';
+import { peek, charge, getClientIp, isLocalDevRequest } from '../../_lib/rate-limit.js';
+
+const SUBMIT_RULE = { scope: 'submit', period: 'day', limit: CONFIG.submitRateLimit.daily };
 
 export async function onRequest(context) {
   if (context.request.method === 'OPTIONS') {
@@ -27,7 +30,7 @@ async function handleSubmit(context) {
     const enforceLimit = !isLocalDevRequest(request);
 
     // Reject IPs already at their daily cap (read-only — does not consume quota).
-    if (enforceLimit && (await isSubmitOverDailyLimit(env.RATE_LIMIT, ip))) {
+    if (enforceLimit && (await peek(env.DB, ip, SUBMIT_RULE))) {
       return json({ ok: false, error: '今日投稿次数已达上限' }, 429);
     }
 
@@ -51,7 +54,7 @@ async function handleSubmit(context) {
 
     // Charge the daily quota only after a genuinely new row is stored.
     if (enforceLimit) {
-      await chargeSubmit(env.RATE_LIMIT, ip);
+      await charge(env.DB, ip, SUBMIT_RULE, context);
     }
 
     return json({ ok: true, id, status: 'pending' }, 201);
@@ -81,42 +84,6 @@ function normalizeInput(payload) {
     text: rawText,
     author: rawAuthor || cfg.submitDefaultAuthor
   };
-}
-
-function submitDayKey(ip) {
-  const dayBucket = new Date(Date.now()).toISOString().slice(0, 10);
-  return `submit:${ip}:d:${dayBucket}`;
-}
-
-// Read-only check: is this IP already at its daily submission cap?
-async function isSubmitOverDailyLimit(kv, ip) {
-  if (!kv) return false;
-  const current = Number((await kv.get(submitDayKey(ip))) || '0');
-  return current >= CONFIG.submitRateLimit.daily;
-}
-
-// Increment the daily counter. Called only after a successful new insert, so
-// duplicates and validation failures never consume the quota.
-async function chargeSubmit(kv, ip) {
-  if (!kv) return;
-  const key = submitDayKey(ip);
-  const current = Number((await kv.get(key)) || '0');
-  await kv.put(key, String(current + 1), {
-    expirationTtl: CONFIG.submitRateLimit.dayBucketTtlSeconds
-  });
-}
-
-function isLocalDevRequest(request) {
-  const hostname = new URL(request.url).hostname;
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
-}
-
-function getClientIp(request) {
-  return (
-    request.headers.get('CF-Connecting-IP') ||
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    'unknown'
-  );
 }
 
 async function readJson(request) {

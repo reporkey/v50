@@ -42,7 +42,6 @@ export const CONFIG = {
     listPageSizeDefault: 20
   },
   submitRateLimit: {
-    daily: 5,
-    dayBucketTtlSeconds: 90000
+    daily: 5
   }
 };
