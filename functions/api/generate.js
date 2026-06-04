@@ -1,5 +1,11 @@
 // POST /api/generate — RAG pipeline: embed query → vector search → MMR re-rank → LLM → guardrails.
 import { CONFIG } from '../_lib/config.js';
+import { enforce, getClientIp, isLocalDevRequest } from '../_lib/rate-limit.js';
+
+const RATE_RULES = [
+  { scope: 'gen', period: 'minute', limit: CONFIG.rateLimit.minutely },
+  { scope: 'gen', period: 'day', limit: CONFIG.rateLimit.daily }
+];
 
 // Pages Functions entry point. Cloudflare invokes this for every request to /api/generate.
 // We handle the CORS preflight (OPTIONS) inline and forward POST to the real handler; anything
@@ -31,22 +37,25 @@ async function handleGenerate(context) {
     // 1. Parse + validate request.
     const payload = await measure(timing, 'read_json_ms', () => readJson(request));
     const input = measureSync(timing, 'normalize_ms', () => normalizeInput(payload));
-    const ip = getClientIp(request);
 
-    // 2. Per-IP rate limit (KV), bypassed on localhost so dev isn't throttled.
-    const limited =
-      !isLocalDevRequest(request) && (await measure(timing, 'rate_limit_ms', () => isRateLimited(env.RATE_LIMIT, ip)));
-    if (limited) {
-      timing.total_ms = elapsedMs(startedAt);
-      const errorMsg = limited.scope === 'day'
-        ? `今日请求次数已达上限（每日 ${limited.limit} 次），请明天再试`
-        : `请求太频繁（每分钟限 ${limited.limit} 次），请稍后再试`;
-      return timedJson({ ok: false, error: errorMsg, timing }, timing, 429);
-    }
-
+    // 2. Server misconfiguration is the server's fault — check bindings before
+    //    spending the caller's rate-limit quota.
     if (!env.AI || !env.DB || !env.V50_INDEX) {
       timing.total_ms = elapsedMs(startedAt);
       return timedJson({ ok: false, error: '生成服务未配置', timing }, timing, 503);
+    }
+
+    // 3. Per-IP rate limit (D1 atomic counters), bypassed on localhost so dev isn't throttled.
+    const ip = getClientIp(request);
+    const limited =
+      !isLocalDevRequest(request) &&
+      (await measure(timing, 'rate_limit_ms', () => enforce(env.DB, ip, RATE_RULES, context)));
+    if (limited) {
+      timing.total_ms = elapsedMs(startedAt);
+      const errorMsg = limited.period === 'day'
+        ? `今日请求次数已达上限（每日 ${limited.limit} 次），请明天再试`
+        : `请求太频繁（每分钟限 ${limited.limit} 次），请稍后再试`;
+      return timedJson({ ok: false, error: errorMsg, timing }, timing, 429);
     }
 
     // 3. Retrieve reference snippets via Vectorize + MMR + D1. The query embedding
@@ -523,49 +532,6 @@ function getAiRunOptions(chatModel) {
   return {
     gateway: { id: CONFIG.ai.gatewayId }
   };
-}
-
-// Per-IP rate limit: independent minute and day counters in KV; trip when either exceeds its limit.
-// Returns null if allowed, or { scope, limit } describing which quota was exceeded.
-async function isRateLimited(kv, ip) {
-  if (!kv) return null;
-
-  const { minutely, daily, minuteBucketTtlSeconds, dayBucketTtlSeconds } = CONFIG.rateLimit;
-  const now = Date.now();
-  const minuteBucket = Math.floor(now / 60000);
-  const dayBucket = new Date(now).toISOString().slice(0, 10);
-  const minuteKey = `rl:${ip}:m:${minuteBucket}`;
-  const dayKey = `rl:${ip}:d:${dayBucket}`;
-
-  // Non-atomic GET → +1 → PUT. Under bursts from one IP the count can drift and the limit slightly overshoot — acceptable here.
-  const [minuteCount, dayCount] = await Promise.all([
-    incrementCounter(kv, minuteKey, minuteBucketTtlSeconds),
-    incrementCounter(kv, dayKey, dayBucketTtlSeconds)
-  ]);
-
-  if (dayCount > daily) return { scope: 'day', limit: daily };
-  if (minuteCount > minutely) return { scope: 'minute', limit: minutely };
-  return null;
-}
-
-function isLocalDevRequest(request) {
-  const hostname = new URL(request.url).hostname;
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
-}
-
-async function incrementCounter(kv, key, expirationTtl) {
-  const current = Number((await kv.get(key)) || '0');
-  const next = current + 1;
-  await kv.put(key, String(next), { expirationTtl });
-  return next;
-}
-
-function getClientIp(request) {
-  return (
-    request.headers.get('CF-Connecting-IP') ||
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    'unknown'
-  );
 }
 
 // Fire-and-forget the given async task. Uses Cloudflare's waitUntil so the worker stays
