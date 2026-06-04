@@ -230,7 +230,8 @@ async function act(id, action, sourceBtn, li) {
       return;
     }
     if (!response.ok || !payload?.ok) {
-      const isEmbedError = payload?.error === 'embed_failed' || payload?.error === 'upsert_failed';
+      const isEmbedError = ['embed_failed', 'upsert_failed', 'promote_failed', 'binding_missing']
+        .includes(payload?.error);
       const message = isEmbedError
         ? ADMIN_CONFIG.messages.embedFailed
         : ADMIN_CONFIG.messages.generic;

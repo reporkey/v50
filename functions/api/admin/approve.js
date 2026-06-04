@@ -64,12 +64,9 @@ async function doApprove(context, id, timing, startedAt) {
     return timedJson({ ok: false, error: 'already_approved' }, timing, 409);
   }
 
-  // Move to 'indexing' and return immediately — the admin isn't made to wait on
-  // the 1-2s Workers AI embed. The embed + Vectorize upsert run in the background
-  // and only then promote the row to 'approved' (see indexCorpusItem). If that
-  // background step fails, the row stays 'indexing' instead of silently vanishing,
-  // so it remains in the admin queue and can be retried by clicking approve again.
-  // 'indexing' is accepted here too, which is exactly that retry path.
+  // Mark 'indexing' first so a request that dies mid-flight leaves the row
+  // visible in the admin queue (with a working 重试索引) instead of half-done.
+  // 'indexing' is accepted by the status filter below, which is that retry path.
   await measure(timing, 'db_update_ms', () =>
     env.DB
       .prepare(
@@ -83,52 +80,67 @@ async function doApprove(context, id, timing, startedAt) {
       .run()
   );
 
-  queueBackgroundTask(
-    context,
-    indexCorpusItem(env, row),
-    `Background indexing failed for ${row.id}`
-  );
+  // Embed + upsert + promote run synchronously (~1-2s) so the response reflects
+  // the real outcome. The old waitUntil version could get cut off after the
+  // Vectorize upsert but before the final D1 promote — reporting ok:true while
+  // the row stayed 'indexing' forever (bit us in prod on 2026-05-29).
+  try {
+    await indexCorpusItem(env, row, timing);
+  } catch (error) {
+    const code = error?.step || 'embed_failed';
+    console.error(`Indexing failed for ${row.id} (${code})`, error);
+    timing.total_ms = elapsedMs(startedAt);
+    // Row stays 'indexing': still in the queue and retryable, and the admin
+    // sees a real error instead of a fake success.
+    return timedJson({ ok: false, error: code }, timing, code === 'binding_missing' ? 503 : 502);
+  }
 
   timing.total_ms = elapsedMs(startedAt);
-  return timedJson({ ok: true, id, status: 'indexing' }, timing);
+  return timedJson({ ok: true, id, status: 'approved' }, timing);
 }
 
-// Embed text via Workers AI, upsert into Vectorize, then stamp indexed_at on
-// the D1 row. Throws on any failure so queueBackgroundTask logs it; the row
-// is left in status='approved' with indexed_at IS NULL so a future retry
-// (manual or scripted) can find it.
-async function indexCorpusItem(env, row) {
+// Embed text via Workers AI, upsert into Vectorize, then promote the D1 row to
+// 'approved' with indexed_at stamped. Each step tags failures with `step` so
+// the caller can report which stage broke; on any throw the row stays 'indexing'.
+async function indexCorpusItem(env, row, timing) {
   if (!env.AI || !env.V50_INDEX || !env.DB) {
-    throw new Error('AI/Vectorize/DB binding missing — cannot index');
+    throw withStep('binding_missing', new Error('AI/Vectorize/DB binding missing — cannot index'));
   }
-  const vector = await embedText(env, row.text);
-  await env.V50_INDEX.upsert([
-    {
-      id: row.id,
-      values: vector,
-      metadata: row.author ? { author: row.author } : {}
-    }
-  ]);
-  // Only now is the vector queryable, so promote 'indexing' → 'approved' and
+  const vector = await measure(timing, 'embed_ms', () => embedText(env, row.text)).catch((error) => {
+    throw withStep('embed_failed', error);
+  });
+  await measure(timing, 'upsert_ms', () =>
+    env.V50_INDEX.upsert([
+      {
+        id: row.id,
+        values: vector,
+        metadata: row.author ? { author: row.author } : {}
+      }
+    ])
+  ).catch((error) => {
+    throw withStep('upsert_failed', error);
+  });
+  // Only now is the vector accepted, so promote 'indexing' → 'approved' and
   // stamp indexed_at. Until this runs the row stays 'indexing' and out of RAG.
-  await env.DB
-    .prepare(
-      `UPDATE corpus_items
-          SET status = 'approved',
-              indexed_at = CURRENT_TIMESTAMP
-        WHERE id = ?`
-    )
-    .bind(row.id)
-    .run();
+  await measure(timing, 'promote_ms', () =>
+    env.DB
+      .prepare(
+        `UPDATE corpus_items
+            SET status = 'approved',
+                indexed_at = CURRENT_TIMESTAMP
+          WHERE id = ?`
+      )
+      .bind(row.id)
+      .run()
+  ).catch((error) => {
+    throw withStep('promote_failed', error);
+  });
 }
 
-function queueBackgroundTask(context, task, errorMessage) {
-  const guardedTask = Promise.resolve(task).catch((error) => {
-    console.error(errorMessage, error);
-  });
-  if (typeof context.waitUntil === 'function') {
-    context.waitUntil(guardedTask);
-  }
+function withStep(step, error) {
+  const tagged = error instanceof Error ? error : new Error(String(error));
+  tagged.step = step;
+  return tagged;
 }
 
 async function doDelete(env, id, timing, startedAt) {

@@ -50,7 +50,7 @@ window.V50_CONFIG = {
       unauthorized: '验证失败，请检查 token',
       generic: '操作失败，请稍后再试',
       embedFailed: '索引失败，请稍后再试',
-      approved: '已通过，索引中',
+      approved: '已通过并收录',
       deleted: '已删除'
     }
   }
